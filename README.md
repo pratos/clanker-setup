@@ -10,19 +10,28 @@ This repo captures your Pi packages plus custom skills/extensions you want to sy
 
 ## Setup on a new machine
 
-1) Install Pi:
+1) Install required CLI tools (for some extensions):
+
+```bash
+bash scripts/pi-prereqs.sh
+```
+
+Supports Homebrew (macOS) and Linux package managers: apt, dnf, yum, pacman, apk, zypper.
+On Debian/Ubuntu, the `bat` binary may be `batcat`.
+
+2) Install Pi:
 
 ```bash
 npm install -g @mariozechner/pi-coding-agent
 ```
 
-2) Install packages listed in `pi/extensions.txt`:
+3) Install packages listed in `pi/extensions.txt`:
 
 ```bash
 bash scripts/pi-install.sh
 ```
 
-3) Sync skills/extensions from this repo into `~/.pi`:
+4) Sync skills/extensions from this repo into `~/.pi`:
 
 ```bash
 bash scripts/pi-sync.sh
