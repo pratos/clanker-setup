@@ -23,3 +23,10 @@ if [[ -d "$EXT_SRC" ]]; then
 else
   echo "No extensions directory at $EXT_SRC"
 fi
+
+if [[ -f "$ROOT/pi/settings.json" ]]; then
+  cp "$ROOT/pi/settings.json" "$PI_DIR/settings.json"
+  echo "Synced settings -> $PI_DIR/settings.json"
+else
+  echo "No settings file at $ROOT/pi/settings.json"
+fi

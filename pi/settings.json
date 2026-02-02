@@ -1,0 +1,21 @@
+{
+  "lastChangelogVersion": "0.50.9",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.2-codex",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "npm:@tmustier/pi-files-widget",
+    "npm:@tmustier/pi-raw-paste",
+    "npm:@tmustier/pi-tab-status",
+    "npm:@aliou/pi-guardrails"
+  ],
+  "enabledModels": [
+    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-opus-4-5",
+    "anthropic/claude-sonnet-4-5",
+    "google-gemini-cli/gemini-3-flash-preview",
+    "google-gemini-cli/gemini-3-pro-preview",
+    "minimax/MiniMax-M2.1",
+    "openai-codex/gpt-5.2-codex"
+  ]
+}

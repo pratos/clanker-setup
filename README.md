@@ -5,6 +5,7 @@ This repo captures your Pi packages plus custom skills/extensions you want to sy
 ## Contents
 
 - `pi/extensions.txt`: package sources for `pi install`
+- `pi/settings.json`: Pi settings snapshot (syncs to `~/.pi/agent/settings.json`)
 - `skills/`: custom skills to sync into `~/.pi/agent/skills`
 - `extensions/`: custom extensions to sync into `~/.pi/agent/extensions`
 
