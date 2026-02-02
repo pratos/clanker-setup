@@ -41,6 +41,14 @@ Review what files are:
 - Untracked (new files)
 - Deleted
 
+### Step 1.1: Check for Unmerged Files
+
+```bash
+git diff --name-only --diff-filter=U
+```
+
+If any files are listed, **stop** and resolve merge conflicts before proceeding.
+
 ### Step 2: Stage Changes
 
 Stage only relevant files (not unrelated files):
@@ -72,6 +80,14 @@ Verify:
 - Changes are intentional
 - No debug code left behind
 - No secrets or credentials included
+
+### Step 3.1: Secrets/Keys Scan (staged diff)
+
+```bash
+git diff --staged -U0 | rg -n '(api[_-]?key|secret|token|password|private[_-]?key|client[_-]?secret|access[_-]?key|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY)'
+```
+
+If any matches appear, **flag them** and do not commit until resolved.
 
 ### Step 4: Commit with Proper Message
 
@@ -148,6 +164,7 @@ git push
 ❌ Staging all files blindly with `git add .`
 ❌ Pushing without verifying the branch
 ❌ Including secrets, credentials, or API keys
+❌ Unmerged/conflict files present
 ❌ Committing large binary files or datasets
 
 ## Success Criteria
