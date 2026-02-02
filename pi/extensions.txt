@@ -1,0 +1,5 @@
+# Pi packages/extensions to install
+npm:@tmustier/pi-files-widget
+npm:@tmustier/pi-raw-paste
+npm:@tmustier/pi-tab-status
+npm:@aliou/pi-guardrails
