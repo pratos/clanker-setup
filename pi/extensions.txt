@@ -4,5 +4,4 @@ npm:@tmustier/pi-raw-paste
 npm:@tmustier/pi-tab-status
 npm:@aliou/pi-guardrails
 npm:pi-ghostty-theme-sync
-npm:shitty-extensions
-/Users/pratos/clanker-setup/extensions/session-breakdown.ts
+npm:@marckrenn/pi-sub-bar
