@@ -1,6 +1,6 @@
 # Home-manager module for Pi coding agent setup.
-# Syncs skills, extensions, and settings declaratively via home.file,
-# then runs `pi install` for npm packages during activation.
+# Copies skills, extensions, and settings into ~/.pi/agent/ during activation,
+# then runs `pi install` for npm packages.
 #
 # Usage (in your flake):
 #   inputs.clanker-setup.url = "github:pratos/clanker-setup";
@@ -19,34 +19,25 @@ flakeSrc: {
   extensionPackages = builtins.filter (line: line != "" && !(lib.hasPrefix "#" line))
     (map (line: lib.trim (builtins.head (lib.splitString "#" line))) extensionLines);
 
-  # Build home.file entries for every file under a source directory.
-  # Maps  <srcDir>/<relative-path>  →  <destPrefix>/<relative-path>
-  mkFileSet = srcDir: destPrefix: let
-    # Recursively collect files from the nix store path
-    collect = dir: prefix: let
-      entries = builtins.readDir dir;
-      process = name: type:
-        if type == "directory"
-        then collect (dir + "/${name}") (
-          if prefix == ""
-          then name
-          else "${prefix}/${name}"
-        )
-        else [
-          {
-            name =
-              if prefix == ""
-              then "${destPrefix}/${name}"
-              else "${destPrefix}/${prefix}/${name}";
-            value = {
-              source = dir + "/${name}";
-            };
-          }
-        ];
-    in
-      lib.concatLists (lib.mapAttrsToList process entries);
-  in
-    builtins.listToAttrs (collect srcDir "");
+  piSync = pkgs.writeShellScript "pi-sync" ''
+    set -euo pipefail
+
+    PI_DIR="$HOME/.pi/agent"
+    mkdir -p "$PI_DIR/skills" "$PI_DIR/extensions"
+
+    echo "pi sync: copying settings"
+    cp -f "${flakeSrc}/pi/settings.json" "$PI_DIR/settings.json"
+    # clean up any leftover backup files from previous home-manager runs
+    rm -f "$PI_DIR/settings.json.backup"
+
+    echo "pi sync: copying skills"
+    ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/skills/" "$PI_DIR/skills/"
+
+    echo "pi sync: copying extensions"
+    ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/extensions/" "$PI_DIR/extensions/"
+
+    echo "pi sync: done"
+  '';
 
   piBootstrap = pkgs.writeShellScript "pi-bootstrap" ''
     set -euo pipefail
@@ -117,20 +108,16 @@ in {
       glow
     ];
 
-    # Declaratively sync skills, extensions, and settings into ~/.pi/agent/
-    home.file =
-      # settings.json
-      {
-        ".pi/agent/settings.json".source = "${flakeSrc}/pi/settings.json";
-      }
-      # skills/*
-      // mkFileSet "${flakeSrc}/skills" ".pi/agent/skills"
-      # extensions/*
-      // mkFileSet "${flakeSrc}/extensions" ".pi/agent/extensions";
+    # Sync skills, extensions, and settings into ~/.pi/agent/ via copy
+    # (not home.file symlinks — Pi's config dir is mutable)
+    home.activation.piSync =
+      lib.hm.dag.entryAfter ["writeBoundary"] ''
+        ${piSync}
+      '';
 
     # Run `pi install` for each npm package during activation
     home.activation.piBootstrap = lib.mkIf (!cfg.skipBootstrap)
-      (lib.hm.dag.entryAfter ["writeBoundary"] ''
+      (lib.hm.dag.entryAfter ["piSync"] ''
         ${piBootstrap}
       '');
   };
