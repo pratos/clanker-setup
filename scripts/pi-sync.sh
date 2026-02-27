@@ -9,6 +9,7 @@ SKILLS_DEST="$PI_DIR/skills"
 EXT_DEST="$PI_DIR/extensions"
 
 mkdir -p "$PI_DIR" "$SKILLS_DEST" "$EXT_DEST"
+chmod -R u+rwX "$SKILLS_DEST" "$EXT_DEST" 2>/dev/null || true
 
 if [[ -d "$SKILLS_SRC" ]]; then
   cp -R "$SKILLS_SRC/." "$SKILLS_DEST/"
