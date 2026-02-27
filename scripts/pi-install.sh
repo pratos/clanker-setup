@@ -5,7 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXT_LIST="$ROOT/pi/extensions.txt"
 SETTINGS="$HOME/.pi/agent/settings.json"
 
-declare -A INSTALLED=()
+# Note: macOS ships Bash 3.2 which doesn't support associative arrays.
+# Use a temp file as a simple set of already-installed package sources.
+INSTALLED_FILE="$(mktemp -t pi-installed.XXXXXX 2>/dev/null || mktemp)"
+trap 'rm -f "$INSTALLED_FILE"' EXIT
 
 if ! command -v pi >/dev/null 2>&1; then
   echo "pi not found. Install with: npm install -g @mariozechner/pi-coding-agent" >&2
@@ -18,9 +21,7 @@ if [[ ! -f "$EXT_LIST" ]]; then
 fi
 
 if [[ -f "$SETTINGS" ]]; then
-  while IFS= read -r pkg; do
-    [[ -n "$pkg" ]] && INSTALLED["$pkg"]=1
-  done < <(python3 - <<'PY'
+  python3 - <<'PY' > "$INSTALLED_FILE" || true
 import json
 import os
 import sys
@@ -39,8 +40,11 @@ for item in data.get("packages", []):
         if src:
             print(src)
 PY
-  )
 fi
+
+is_installed() {
+  grep -Fxq -- "$1" "$INSTALLED_FILE" 2>/dev/null
+}
 
 echo "Installing packages from $EXT_LIST"
 while IFS= read -r line; do
@@ -48,14 +52,14 @@ while IFS= read -r line; do
   line="$(echo "$line" | xargs)"
   [[ -z "$line" ]] && continue
 
-  if [[ -n "${INSTALLED[$line]:-}" ]]; then
+  if is_installed "$line"; then
     echo "-> $line (already installed)"
     continue
   fi
 
   echo "-> $line"
   pi install "$line"
-  INSTALLED["$line"]=1
+  echo "$line" >> "$INSTALLED_FILE"
 
 done < "$EXT_LIST"
 
