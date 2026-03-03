@@ -75,10 +75,44 @@ flakeSrc: {
 
     export PATH="$(dirname "$pi_bin"):$PATH"
 
+    installed_file="$(mktemp -t pi-installed.XXXXXX 2>/dev/null || mktemp)"
+    trap 'rm -f "$installed_file"' EXIT
+
+    if [ -f "$HOME/.pi/agent/settings.json" ]; then
+      python3 - <<'PY' > "$installed_file" || true
+import json
+import os
+import sys
+
+settings = os.path.expanduser("~/.pi/agent/settings.json")
+try:
+    data = json.load(open(settings))
+except Exception:
+    sys.exit(0)
+
+for item in data.get("packages", []):
+    if isinstance(item, str):
+        print(item)
+    elif isinstance(item, dict):
+        src = item.get("source")
+        if src:
+            print(src)
+PY
+    fi
+
+    is_installed() {
+      grep -Fxq -- "$1" "$installed_file" 2>/dev/null
+    }
+
     # Install extension packages
     ${lib.concatMapStringsSep "\n" (pkg: ''
-      echo "pi install: ${pkg}"
-      "$pi_bin" install "${pkg}" || echo "  warning: failed to install ${pkg}"
+      if is_installed "${pkg}"; then
+        echo "pi install: ${pkg} (already installed)"
+      else
+        echo "pi install: ${pkg}"
+        "$pi_bin" install "${pkg}" || echo "  warning: failed to install ${pkg}"
+        echo "${pkg}" >> "$installed_file"
+      fi
     '') extensionPackages}
 
     echo "pi bootstrap: done"
