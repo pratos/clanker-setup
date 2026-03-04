@@ -33,8 +33,14 @@ This skill activates when:
 
 Exa provides semantic/neural search with content retrieval. Use this as the **primary** method.
 
+**Important**: Always load the API key with sops-nix fallback at the start of Exa commands:
+```bash
+EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
+```
+
 ### Basic Search (get URLs and titles)
 ```bash
+EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
   -H "x-api-key: ${EXA_API_KEY}" \
   -H "Content-Type: application/json" \
@@ -47,6 +53,7 @@ curl -s "https://api.exa.ai/search" \
 
 ### Search with Content (get text from pages)
 ```bash
+EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
   -H "x-api-key: ${EXA_API_KEY}" \
   -H "Content-Type: application/json" \
@@ -64,6 +71,7 @@ curl -s "https://api.exa.ai/search" \
 
 ### Search with Highlights (best for extracting key info)
 ```bash
+EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
   -H "x-api-key: ${EXA_API_KEY}" \
   -H "Content-Type: application/json" \
@@ -82,6 +90,7 @@ curl -s "https://api.exa.ai/search" \
 
 ### Filter by Domain or Date
 ```bash
+EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
   -H "x-api-key: ${EXA_API_KEY}" \
   -H "Content-Type: application/json" \
