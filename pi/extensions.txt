@@ -1,4 +1,5 @@
 # Pi packages/extensions to install
+npm:pi-mcp-adapter
 npm:@tmustier/pi-files-widget
 npm:@tmustier/pi-raw-paste
 npm:@tmustier/pi-tab-status

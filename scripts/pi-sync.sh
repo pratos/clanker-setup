@@ -34,6 +34,12 @@ sync_dir() {
 sync_dir "$SKILLS_SRC" "$SKILLS_DEST" "skills"
 sync_dir "$EXT_SRC" "$EXT_DEST" "extensions"
 
+# Sync mcp.json (pi-mcp-adapter config)
+if [[ -f "$ROOT/pi/mcp.json" ]]; then
+  cp "$ROOT/pi/mcp.json" "$PI_DIR/mcp.json"
+  echo "Synced mcp.json -> $PI_DIR/mcp.json"
+fi
+
 if [[ -f "$ROOT/pi/settings.json" ]]; then
   if [[ -f "$PI_DIR/settings.json" ]]; then
     python3 - <<'PY' "$ROOT/pi/settings.json" "$PI_DIR/settings.json" > "$PI_DIR/settings.json.tmp"

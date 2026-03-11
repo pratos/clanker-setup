@@ -88,7 +88,7 @@ curl -s "https://api.exa.ai/search" \
   }' | jq '.results[] | {title, url, highlights}'
 ```
 
-### Filter by Domain or Date
+### Filter by Domain and Recency (using maxAgeHours)
 ```bash
 EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
@@ -99,24 +99,44 @@ curl -s "https://api.exa.ai/search" \
     "numResults": 5,
     "type": "auto",
     "includeDomains": ["kubernetes.io", "github.com"],
-    "startPublishedDate": "2024-01-01T00:00:00.000Z",
+    "maxAgeHours": 8760,
     "contents": {
       "text": {"maxCharacters": 800}
     }
   }' | jq '.results[] | {title, url, publishedDate, text}'
 ```
 
+### Temporal Context → maxAgeHours Mapping
+
+| Time Signal in Query | Meaning | maxAgeHours Value |
+|---------------------|---------|-------------------|
+| "today", "just now", "breaking" | Last 24 hours | `24` |
+| "this week", "recent", "latest" | Last 7 days | `168` |
+| "last 72 hours" | 3 days | `72` |
+| "last month", "recently" | ~30 days | `720` |
+| "last quarter" | ~90 days | `2160` |
+| "last 6 months" | ~180 days | `4320` |
+| "past year", "last year" | ~365 days | `8760` |
+| No time signal | Evergreen/all time | omit parameter |
+
+> ⚠️ **IMPORTANT: Use Relative Time!** 
+> - **NEVER** hardcode years in queries (e.g., "best practices 2024")
+> - **NEVER** use hardcoded `startPublishedDate` values
+> - **ALWAYS** use `maxAgeHours` for recency filtering - it's relative to NOW
+> - The current date/time is provided in your system context - use it to determine appropriate `maxAgeHours`
+
 ### Exa API Parameters Reference
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `query` | string | Search query (required) |
+| `query` | string | Search query (required) - **NO hardcoded years!** |
 | `numResults` | int | Number of results (default: 10, max: 100) |
 | `type` | string | `"auto"`, `"neural"`, or `"keyword"` |
 | `includeDomains` | array | Limit to specific domains |
 | `excludeDomains` | array | Exclude specific domains |
-| `startPublishedDate` | string | ISO date filter (after) |
-| `endPublishedDate` | string | ISO date filter (before) |
+| `maxAgeHours` | int | **⭐ PREFERRED** - Results from last N hours (relative to now) |
+| `startPublishedDate` | string | ISO date filter (after) - ⚠️ avoid hardcoding |
+| `endPublishedDate` | string | ISO date filter (before) - ⚠️ avoid hardcoding |
 | `contents.text.maxCharacters` | int | Max chars of text to return |
 | `contents.highlights.numSentences` | int | Number of highlight sentences |
 | `contents.highlights.query` | string | Query for highlights |
@@ -228,6 +248,7 @@ Structure your findings as:
 - **Currency**: Note publication dates from Exa results when available
 - **Authority**: Prioritize official sources (docs, GitHub, official blogs)
 - **Transparency**: Clearly indicate when information might be outdated
+- **Dynamic Dates**: NEVER hardcode years in queries (e.g., "best practices 2024"). Use `maxAgeHours` parameter for recency filtering - it's always relative to the current time
 
 ---
 

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "deep-wiki": {
+      "type": "sse",
+      "url": "https://mcp.deepwiki.com/sse",
+      "lifecycle": "lazy",
+      "idleTimeout": 10
+    },
+    "tidewave": {
+      "url": "http://localhost:4999/tidewave/mcp",
+      "lifecycle": "lazy",
+      "idleTimeout": 30
+    }
+  }
+}
