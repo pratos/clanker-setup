@@ -335,7 +335,7 @@ class ToolActivityPanel {
     }
 
     // ── Footer ──
-    const footerLabel = " Ctrl+Shift+T toggle ";
+    const footerLabel = " Ctrl+Shift+A toggle ";
     const footerDash = Math.max(0, W - visibleWidth(footerLabel));
     out.push(
       bdr("╰") + bdr("─".repeat(footerDash)) + th.fg("dim", footerLabel) + bdr("╯")
@@ -868,7 +868,7 @@ Example:
   }
 
   // Toggle shortcut
-  pi.registerShortcut("ctrl+shift+t", {
+  pi.registerShortcut("ctrl+shift+a", {
     description: "Toggle tool activity panel",
     handler: async (ctx) => {
       if (panelVisible) {
