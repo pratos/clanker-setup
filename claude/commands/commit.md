@@ -1,32 +1,19 @@
 ---
-name: git-commit-workflow
-description: Git workflow skill for staging, reviewing, committing, and pushing changes with proper commit message format.
+description: Analyze git changes and create a commit with proper format — stage, review, commit, push
 ---
 
-# Git Commit Workflow
+# Commit Changes
 
 ## Activation
 
-**When this skill is triggered, ALWAYS display this banner first:**
-
 ```
 ╭─────────────────────────────────────────────────────────────╮
-│  📝 SKILL ACTIVATED: git-commit-workflow                    │
+│  📝 COMMAND: commit                                         │
 ├─────────────────────────────────────────────────────────────┤
 │  Action: Stage → Review → Commit → [Push if requested]      │
 │  Format: (type) description                                 │
 ╰─────────────────────────────────────────────────────────────╯
 ```
-
-## When to Use
-
-This skill activates when the user requests:
-- "git add and commit"
-- "commit and push"
-- "git add, commit, push"
-- "commit my changes"
-- "push the changes"
-- Any variation of staging, committing, or pushing code
 
 ## Workflow Steps
 
@@ -137,25 +124,6 @@ git push
 - All tests pass (if applicable)
 - No WIP commits being pushed
 - On correct branch
-
-## Complete Example
-
-```bash
-# 1. Check status
-git status
-
-# 2. Stage relevant files
-git add src/hydra-conf/new_config.yaml src/data/new_dataset.csv
-
-# 3. Review staged changes
-git diff --staged --stat
-
-# 4. Commit
-git commit -m "(feat) add new training config for DAPS finetuning"
-
-# 5. Push (if requested)
-git push
-```
 
 ## Red Flags
 

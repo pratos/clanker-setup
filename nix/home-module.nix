@@ -34,7 +34,15 @@ flakeSrc: {
     ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/skills/" "$PI_DIR/skills/"
 
     echo "pi sync: copying extensions"
-    ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/extensions/" "$PI_DIR/extensions/"
+    ${pkgs.rsync}/bin/rsync -a --delete --exclude='node_modules' "${flakeSrc}/extensions/" "$PI_DIR/extensions/"
+
+    # Install npm dependencies for directory-based extensions with package.json
+    for ext_dir in "$PI_DIR/extensions"/*/; do
+      if [ -f "''${ext_dir}package.json" ]; then
+        echo "pi sync: installing deps for extension: $(basename "$ext_dir")"
+        (cd "$ext_dir" && npm install --omit=dev 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
+      fi
+    done
 
     # Sync Claude Code config
     CLAUDE_DIR="$HOME/.claude"
@@ -49,6 +57,15 @@ flakeSrc: {
       cp -f "${flakeSrc}/claude/settings.json" "$CLAUDE_DIR/settings.json"
       echo "pi sync: copied claude/settings.json"
     fi
+
+    # Sync .claude/ subdirectories (commands, agents, rules) for HumanLayer extension
+    for subdir in commands agents rules; do
+      if [ -d "${flakeSrc}/claude/$subdir" ]; then
+        mkdir -p "$CLAUDE_DIR/$subdir"
+        ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/claude/$subdir/" "$CLAUDE_DIR/$subdir/"
+        echo "pi sync: copied claude/$subdir"
+      fi
+    done
 
     echo "pi sync: done"
   '';

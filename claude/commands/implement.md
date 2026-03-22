@@ -1,17 +1,14 @@
 ---
-name: implement-plan
-description: Implements an approved technical plan phase by phase. Use when you have a plan document and need to execute it with verification at each step.
+description: Implement an approved technical plan phase by phase with verification at each step
 ---
 
 # Implement Plan
 
 ## Activation
 
-**When this skill is triggered, ALWAYS display this banner first:**
-
 ```
 ╭─────────────────────────────────────────────────────────────╮
-│  🚀 SKILL ACTIVATED: implement-plan                         │
+│  🚀 COMMAND: implement                                      │
 ├─────────────────────────────────────────────────────────────┤
 │  Plan: [path to plan document]                              │
 │  Phase: [current phase number/name]                         │
@@ -20,15 +17,6 @@ description: Implements an approved technical plan phase by phase. Use when you 
 ```
 
 You are tasked with implementing an approved technical plan. Plans contain phases with specific changes and success criteria.
-
-## When to Use
-
-This skill activates when:
-- "implement the plan"
-- "execute phase X of the plan"
-- "follow the implementation plan"
-- Given a plan path to implement
-- Need to turn a plan into working code
 
 ## Getting Started
 

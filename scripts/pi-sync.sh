@@ -32,7 +32,26 @@ sync_dir() {
 }
 
 sync_dir "$SKILLS_SRC" "$SKILLS_DEST" "skills"
-sync_dir "$EXT_SRC" "$EXT_DEST" "extensions"
+
+# Extensions: exclude node_modules from delete (installed by npm install below)
+if [[ -d "$EXT_SRC" ]]; then
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --exclude='node_modules' "$EXT_SRC/" "$EXT_DEST/"
+  else
+    # Fallback: preserve node_modules dirs before delete
+    find "$EXT_DEST" -mindepth 1 -maxdepth 1 -not -name node_modules -exec rm -rf {} +
+    cp -R "$EXT_SRC/." "$EXT_DEST/"
+  fi
+  echo "Synced extensions -> $EXT_DEST"
+fi
+
+# Install npm dependencies for directory-based extensions with package.json
+for ext_dir in "$EXT_DEST"/*/; do
+  if [[ -f "${ext_dir}package.json" ]]; then
+    echo "Installing deps for extension: $(basename "$ext_dir")"
+    (cd "$ext_dir" && npm install --omit=dev 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
+  fi
+done
 
 # Sync mcp.json (pi-mcp-adapter config)
 if [[ -f "$ROOT/pi/mcp.json" ]]; then
@@ -53,6 +72,20 @@ if [[ -f "$ROOT/claude/settings.json" ]]; then
   cp "$ROOT/claude/settings.json" "$CLAUDE_DIR/settings.json"
   echo "Synced claude/settings.json -> $CLAUDE_DIR/settings.json"
 fi
+
+# Sync .claude/ subdirectories (commands, agents, rules) for HumanLayer extension
+for subdir in commands agents rules; do
+  if [[ -d "$ROOT/claude/$subdir" ]]; then
+    mkdir -p "$CLAUDE_DIR/$subdir"
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a --delete "$ROOT/claude/$subdir/" "$CLAUDE_DIR/$subdir/"
+    else
+      find "$CLAUDE_DIR/$subdir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+      cp -R "$ROOT/claude/$subdir/." "$CLAUDE_DIR/$subdir/"
+    fi
+    echo "Synced claude/$subdir -> $CLAUDE_DIR/$subdir"
+  fi
+done
 
 if [[ -f "$ROOT/pi/settings.json" ]]; then
   if [[ -f "$PI_DIR/settings.json" ]]; then

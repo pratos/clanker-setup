@@ -1,17 +1,14 @@
 ---
-name: create-implementation-plan
-description: Creates detailed implementation plans through an interactive, iterative process. Use when you need to plan a feature, task, or ticket with thorough research, phased approach, and clear success criteria.
+description: Create a detailed implementation plan through interactive research, design, and phased planning with success criteria
 ---
 
 # Create Implementation Plan
 
 ## Activation
 
-**When this skill is triggered, ALWAYS display this banner first:**
-
 ```
 ╭─────────────────────────────────────────────────────────────╮
-│  📐 SKILL ACTIVATED: create-implementation-plan             │
+│  📐 COMMAND: plan                                           │
 ├─────────────────────────────────────────────────────────────┤
 │  Task: [ticket/feature being planned]                       │
 │  Action: Research → Design → Plan → Review                  │
@@ -20,15 +17,6 @@ description: Creates detailed implementation plans through an interactive, itera
 ```
 
 You are tasked with creating detailed implementation plans through an interactive, iterative process. Be skeptical, thorough, and work collaboratively to produce high-quality technical specifications.
-
-## When to Use
-
-This skill activates when:
-- "create a plan for"
-- "plan the implementation of"
-- "how should we build"
-- "design the approach for"
-- Need structured planning before coding
 
 ## Process Steps
 
@@ -139,10 +127,6 @@ Use this template structure:
 #### 1. [Component/File Group]
 **File**: `path/to/file.ext`
 **Changes**: [Summary of changes]
-
-```[language]
-// Specific code to add/modify
-```
 
 ### Success Criteria:
 - [ ] Tests pass
