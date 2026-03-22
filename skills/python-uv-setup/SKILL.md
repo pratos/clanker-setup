@@ -22,6 +22,7 @@ description: Sets up a modern Python project with uv, ruff, ty, and best practic
 ## When to Use
 
 This skill activates when:
+
 - "set up a new Python project"
 - "create a Python package"
 - "initialize Python with uv"
@@ -33,6 +34,7 @@ This skill activates when:
 ## Quick Start
 
 ### Option 1: Use the bootstrap script (recommended)
+
 ```bash
 # Create a library
 bash .pi/skills/python-uv-setup/scripts/bootstrap.sh my-package
@@ -42,12 +44,14 @@ bash .pi/skills/python-uv-setup/scripts/bootstrap.sh my-cli --app
 ```
 
 This creates a complete project with:
+
 - src layout, tests, CI
 - pyproject.toml with ruff, pytest, coverage config
 - Type hints and py.typed marker
 - Git initialized with first commit
 
 ### Option 2: Manual setup
+
 ```bash
 # Create project directory
 mkdir my-package && cd my-package
@@ -68,12 +72,14 @@ uv init --app --name my-app
 When the repo already contains Python code, **prioritize minimal change**. The goal is uv compliance without altering application behavior.
 
 **Rules:**
+
 - **Do not change application code** unless explicitly requested.
 - **Do not move files** unless explicitly allowed by the user.
 - **Preserve existing layout** (do not force a `src/` layout on brown-field repos).
 - **Preserve declared Python support** (do not auto-bump to 3.12 if the project advertises 3.10+) **unless the user explicitly states a main version** (e.g., “Python 3.12 is the main”). In that case, set `.python-version` and `requires-python` to match the stated main version.
 
 **Brown-field steps (minimal, best practice):**
+
 1. Read `README.md`, `requirements*.txt`, `setup.cfg`/`setup.py`, `pyproject.toml`, and CI config to capture **name**, **version**, **Python version range**, and **dependencies**.
 2. If no `pyproject.toml`, create one with `[project]` metadata (name, version, description, readme, license). **Reuse existing values** when available.
 3. **Dependencies:** import from existing files and pin exact versions (use `uv pip compile` if needed). Preserve separation of runtime vs dev deps.
@@ -96,6 +102,7 @@ bash .pi/skills/python-uv-setup/scripts/migrate.sh --from requirements
 ```
 
 The script will:
+
 - Backup existing lock files and requirements
 - Create/update pyproject.toml
 - Import dependencies
@@ -125,6 +132,7 @@ uv run python -c "import your_package"
 ```
 
 **Manual alternative** - Add to pyproject.toml:
+
 ```toml
 [project]
 dependencies = [
@@ -147,6 +155,7 @@ poetry export -f requirements.txt > requirements-poetry.txt
 ```
 
 **Before (Poetry):**
+
 ```toml
 [tool.poetry]
 name = "my-package"
@@ -165,6 +174,7 @@ build-backend = "poetry.core.masonry.api"
 ```
 
 **After (uv):**
+
 ```toml
 [project]
 name = "my-package"
@@ -211,6 +221,7 @@ uv add requests pandas numpy  # etc.
 ```
 
 **Hybrid approach** (conda for CUDA + uv for Python):
+
 ```bash
 # Create minimal conda env for CUDA only
 conda create -n myenv python=3.12 cudatoolkit=12.1 -y
@@ -251,6 +262,7 @@ uv sync --all-extras
 ```
 
 **setup.cfg:**
+
 ```ini
 [metadata]
 name = my-package
@@ -264,6 +276,7 @@ install_requires =
 ```
 
 **pyproject.toml:**
+
 ```toml
 [project]
 name = "my-package"
@@ -447,7 +460,8 @@ exclude_lines = [
 
 ## Essential Files
 
-### src/my_package/__init__.py
+### src/my_package/**init**.py
+
 ```python
 """My Package - A short description."""
 
@@ -458,12 +472,15 @@ __all__ = ["main_function", "__version__"]
 ```
 
 ### src/my_package/py.typed
+
 ```
 # PEP 561 marker - this package supports type checking
 ```
+
 (Empty file, just needs to exist)
 
 ### src/my_package/core.py
+
 ```python
 """Core functionality for my-package."""
 
@@ -477,13 +494,13 @@ if TYPE_CHECKING:
 
 def main_function(items: Sequence[str]) -> list[str]:
     """Process items and return results.
-    
+
     Args:
         items: Input items to process.
-        
+
     Returns:
         Processed items as a list.
-        
+
     Example:
         >>> main_function(["a", "b", "c"])
         ['A', 'B', 'C']
@@ -492,6 +509,7 @@ def main_function(items: Sequence[str]) -> list[str]:
 ```
 
 ### tests/conftest.py
+
 ```python
 """Pytest configuration and fixtures."""
 
@@ -505,6 +523,7 @@ def sample_data() -> list[str]:
 ```
 
 ### tests/test_core.py
+
 ```python
 """Tests for core functionality."""
 
@@ -523,13 +542,16 @@ def test_main_function_empty() -> None:
 ```
 
 ### .python-version
+
 ```
 3.12
 ```
+
 **New projects:** pin to 3.12 for consistency.
 **Brown-field:** match the project's existing supported Python version **unless the user explicitly names a main version**, in which case use that.
 
 ### .gitignore
+
 ```gitignore
 # Python
 __pycache__/
@@ -571,6 +593,7 @@ Thumbs.db
 ```
 
 ### .github/workflows/ci.yml
+
 ```yaml
 name: CI
 
@@ -618,6 +641,7 @@ jobs:
 ## Commands Reference
 
 ### Daily Development
+
 ```bash
 # Install dependencies (creates .venv automatically)
 uv sync
@@ -643,6 +667,7 @@ ty check src/
 ```
 
 ### Dependency Management
+
 ```bash
 # Add a dependency
 uv add requests
@@ -661,6 +686,7 @@ uv lock --upgrade-package requests
 ```
 
 ### Building and Publishing
+
 ```bash
 # Build package
 uv build
@@ -693,12 +719,14 @@ dependencies = [
 ```
 
 **Why exact versions:**
+
 - Reproducible builds across all environments
 - No surprise breakages from upstream updates
 - Easier debugging (everyone has same versions)
 - AI agents can rely on specific API behavior
 
 **To get current versions:**
+
 ```bash
 # Check latest version of a package
 uv pip show requests | grep Version
@@ -709,6 +737,7 @@ cat uv.lock | grep -A2 '"requests"'
 ```
 
 **Python version:**
+
 ```
 # .python-version - new projects: 3.12; brown-field: match existing
 3.12
@@ -724,6 +753,7 @@ requires-python = "==3.12.*"
 ## Agent-Friendly Best Practices
 
 ### 1. Type Everything
+
 ```python
 # ✅ Good - AI agents can understand types
 def process(data: dict[str, int]) -> list[tuple[str, int]]:
@@ -735,20 +765,21 @@ def process(data):
 ```
 
 ### 2. Docstrings with Examples
+
 ```python
 def calculate_discount(price: float, percent: float) -> float:
     """Calculate discounted price.
-    
+
     Args:
         price: Original price in dollars.
         percent: Discount percentage (0-100).
-        
+
     Returns:
         Discounted price.
-        
+
     Raises:
         ValueError: If percent is not between 0 and 100.
-        
+
     Example:
         >>> calculate_discount(100.0, 20.0)
         80.0
@@ -756,6 +787,7 @@ def calculate_discount(price: float, percent: float) -> float:
 ```
 
 ### 3. Explicit Exports
+
 ```python
 # __init__.py - Be explicit about public API
 __all__ = [
@@ -766,13 +798,14 @@ __all__ = [
 ```
 
 ### 4. Structured Errors
+
 ```python
 class MyPackageError(Exception):
     """Base exception for my-package."""
 
 class ValidationError(MyPackageError):
     """Raised when validation fails."""
-    
+
     def __init__(self, field: str, message: str) -> None:
         self.field = field
         self.message = message
@@ -780,6 +813,7 @@ class ValidationError(MyPackageError):
 ```
 
 ### 5. Configuration via Pydantic (optional)
+
 ```bash
 uv add pydantic pydantic-settings
 ```
@@ -791,7 +825,7 @@ class Settings(BaseSettings):
     api_key: str
     debug: bool = False
     max_retries: int = 3
-    
+
     model_config = {"env_prefix": "MY_PACKAGE_"}
 ```
 

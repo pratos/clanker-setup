@@ -40,6 +40,20 @@ if [[ -f "$ROOT/pi/mcp.json" ]]; then
   echo "Synced mcp.json -> $PI_DIR/mcp.json"
 fi
 
+# Sync Claude Code config
+CLAUDE_DIR="$HOME/.claude"
+mkdir -p "$CLAUDE_DIR"
+
+if [[ -f "$ROOT/claude/mcp.json" ]]; then
+  cp "$ROOT/claude/mcp.json" "$CLAUDE_DIR/mcp.json"
+  echo "Synced claude/mcp.json -> $CLAUDE_DIR/mcp.json"
+fi
+
+if [[ -f "$ROOT/claude/settings.json" ]]; then
+  cp "$ROOT/claude/settings.json" "$CLAUDE_DIR/settings.json"
+  echo "Synced claude/settings.json -> $CLAUDE_DIR/settings.json"
+fi
+
 if [[ -f "$ROOT/pi/settings.json" ]]; then
   if [[ -f "$PI_DIR/settings.json" ]]; then
     python3 - <<'PY' "$ROOT/pi/settings.json" "$PI_DIR/settings.json" > "$PI_DIR/settings.json.tmp"

@@ -6,3 +6,5 @@ npm:@tmustier/pi-tab-status
 npm:@aliou/pi-guardrails
 npm:pi-ghostty-theme-sync
 npm:@marckrenn/pi-sub-bar
+npm:pi-context
+npm:pi-rewind

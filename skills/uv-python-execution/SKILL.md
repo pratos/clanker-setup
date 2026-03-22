@@ -25,6 +25,7 @@ Replace `[Mode]` with the detected trigger type.
 This skill activates automatically whenever:
 
 **Python Execution** - Pattern matching on:
+
 - `python script.py`
 - `python3 script.py`
 - `python -m module`
@@ -32,6 +33,7 @@ This skill activates automatically whenever:
 - Any direct Python interpreter invocation
 
 **One-Time Scripts** - Pattern matching on:
+
 - "write a quick script"
 - "make a standalone script"
 - "one-off script"
@@ -39,6 +41,7 @@ This skill activates automatically whenever:
 - Scripts needing packages not in the project
 
 **Type Checking** - Pattern matching on:
+
 - `pyright`
 - `mypy`
 - Any type checking operation
@@ -239,6 +242,7 @@ chmod +x script.py
 ### Examples
 
 **Fetch and display JSON data:**
+
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
@@ -256,6 +260,7 @@ console.print(JSON.from_data(data))
 ```
 
 **Quick CSV processing:**
+
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script
@@ -270,6 +275,7 @@ print(df.describe().to_markdown())
 ```
 
 **Web scraping one-liner:**
+
 ```python
 #!/usr/bin/env -S uv run --script
 # /// script

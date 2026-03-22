@@ -1,6 +1,6 @@
 ---
 name: web-search-researcher
-description: Conducts comprehensive web research to find accurate, relevant information. Use when you need modern information only discoverable on the web, documentation, best practices, or technical solutions.
+description: Conducts comprehensive web research to find accurate, relevant information. Use when you need modern information only discoverable on the web, documentation, best practices, or technical solutions. Combines Exa.ai semantic search, curl fallback methods, and structured research strategies.
 ---
 
 # Web Search Researcher
@@ -28,12 +28,45 @@ This skill activates when:
 - "look up how to"
 - Need current/modern information not in training data
 - Need official documentation or tutorials
+- Need to compare technologies or find benchmarks
 
-## Method 1: Exa.ai API (Primary - Recommended)
+## Core Responsibilities
 
-Exa provides semantic/neural search with content retrieval. Use this as the **primary** method.
+When you receive a research query:
 
-**Important**: Always load the API key with sops-nix fallback at the start of Exa commands:
+1. **Analyze the Query**: Break down the request to identify:
+   - Key search terms and concepts
+   - Types of sources likely to have answers (documentation, blogs, forums, papers)
+   - Multiple search angles to ensure comprehensive coverage
+   - Temporal requirements (recent vs evergreen)
+
+2. **Execute Strategic Searches**:
+   - Start with broad searches to understand the landscape
+   - Refine with specific technical terms and phrases
+   - Use multiple search variations to capture different perspectives
+   - Include site-specific searches for known authoritative sources
+   - Use the cheapest method that fits (curl first, Exa when semantic search is needed)
+
+3. **Fetch and Analyze Content**:
+   - Retrieve full content from promising search results
+   - Prioritize official documentation, reputable technical blogs, and authoritative sources
+   - Extract specific quotes and sections relevant to the query
+   - Note publication dates to ensure currency of information
+
+4. **Synthesize Findings**:
+   - Organize information by relevance and authority
+   - Include exact quotes with proper attribution
+   - Provide direct links to sources
+   - Highlight any conflicting information or version-specific details
+   - Note any gaps in available information
+
+---
+
+## Method 1: Exa.ai API (Primary — Semantic Search)
+
+Exa provides semantic/neural search with content retrieval. Use this for intelligent, context-aware searching.
+
+**Important**: Always load the API key with sops-nix fallback:
 ```bash
 EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 ```
@@ -88,7 +121,7 @@ curl -s "https://api.exa.ai/search" \
   }' | jq '.results[] | {title, url, highlights}'
 ```
 
-### Filter by Domain and Recency (using maxAgeHours)
+### Filter by Domain and Recency
 ```bash
 EXA_API_KEY="${EXA_API_KEY:-$(cat ~/.config/sops-nix/secrets/exa/api-key 2>/dev/null)}"
 curl -s "https://api.exa.ai/search" \
@@ -108,8 +141,8 @@ curl -s "https://api.exa.ai/search" \
 
 ### Temporal Context → maxAgeHours Mapping
 
-| Time Signal in Query | Meaning | maxAgeHours Value |
-|---------------------|---------|-------------------|
+| Time Signal in Query | Meaning | maxAgeHours |
+|---------------------|---------|-------------|
 | "today", "just now", "breaking" | Last 24 hours | `24` |
 | "this week", "recent", "latest" | Last 7 days | `168` |
 | "last 72 hours" | 3 days | `72` |
@@ -119,49 +152,47 @@ curl -s "https://api.exa.ai/search" \
 | "past year", "last year" | ~365 days | `8760` |
 | No time signal | Evergreen/all time | omit parameter |
 
-> ⚠️ **IMPORTANT: Use Relative Time!** 
+> ⚠️ **IMPORTANT: Use Relative Time!**
 > - **NEVER** hardcode years in queries (e.g., "best practices 2024")
-> - **NEVER** use hardcoded `startPublishedDate` values
-> - **ALWAYS** use `maxAgeHours` for recency filtering - it's relative to NOW
-> - The current date/time is provided in your system context - use it to determine appropriate `maxAgeHours`
+> - **ALWAYS** use `maxAgeHours` for recency filtering — it's relative to NOW
+> - The current date/time is provided in your system context
 
 ### Exa API Parameters Reference
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `query` | string | Search query (required) - **NO hardcoded years!** |
+| `query` | string | Search query (required) — **NO hardcoded years!** |
 | `numResults` | int | Number of results (default: 10, max: 100) |
 | `type` | string | `"auto"`, `"neural"`, or `"keyword"` |
 | `includeDomains` | array | Limit to specific domains |
 | `excludeDomains` | array | Exclude specific domains |
-| `maxAgeHours` | int | **⭐ PREFERRED** - Results from last N hours (relative to now) |
-| `startPublishedDate` | string | ISO date filter (after) - ⚠️ avoid hardcoding |
-| `endPublishedDate` | string | ISO date filter (before) - ⚠️ avoid hardcoding |
+| `maxAgeHours` | int | **⭐ PREFERRED** — Results from last N hours |
+| `startPublishedDate` | string | ISO date filter (after) — ⚠️ avoid hardcoding |
+| `endPublishedDate` | string | ISO date filter (before) — ⚠️ avoid hardcoding |
 | `contents.text.maxCharacters` | int | Max chars of text to return |
 | `contents.highlights.numSentences` | int | Number of highlight sentences |
 | `contents.highlights.query` | string | Query for highlights |
 
 ---
 
-## Method 2: Curl Fallback (When Exa fails or for direct fetching)
+## Method 2: Curl Fallback (Free — No API Key Needed)
 
-Use these methods if Exa API is unavailable or when you need to fetch specific URLs directly.
+Use when Exa is unavailable, for direct URL fetching, or to save budget.
 
 ### Fetch a webpage directly
 ```bash
 # Basic fetch
 curl -sL "https://docs.python.org/3/library/asyncio.html" | head -500
 
-# Follow redirects and get clean text (strip HTML)
+# Clean text (strip HTML)
 curl -sL "https://example.com" | sed 's/<[^>]*>//g' | tr -s ' \n' | head -200
 
 # With user agent (some sites require it)
 curl -sL -A "Mozilla/5.0" "https://example.com"
 ```
 
-### Search via DuckDuckGo (no API key needed)
+### Search via DuckDuckGo (free, no API key)
 ```bash
-# Get search results as HTML
 curl -sL "https://html.duckduckgo.com/html/?q=python+asyncio+best+practices" | \
   grep -oP 'href="https?://[^"]+' | \
   grep -v duckduckgo | \
@@ -173,17 +204,16 @@ curl -sL "https://html.duckduckgo.com/html/?q=python+asyncio+best+practices" | \
 # Raw file from GitHub
 curl -sL "https://raw.githubusercontent.com/owner/repo/main/README.md"
 
-# GitHub API (for repo info, issues, etc.)
+# GitHub API
 curl -sL "https://api.github.com/repos/astral-sh/uv" | head -50
 ```
 
-### Fetch PyPI package info
+### Fetch package registry info
 ```bash
+# PyPI
 curl -sL "https://pypi.org/pypi/requests/json" | jq '.info.version, .info.summary'
-```
 
-### Fetch npm package info
-```bash
+# npm
 curl -sL "https://registry.npmjs.org/typescript" | jq '.["dist-tags"].latest, .description'
 ```
 
@@ -191,68 +221,35 @@ curl -sL "https://registry.npmjs.org/typescript" | jq '.["dist-tags"].latest, .d
 
 ## Search Strategies
 
-### For API/Library Documentation:
-1. Use Exa with domain filter: `"includeDomains": ["docs.python.org", "developer.mozilla.org"]`
-2. Fallback: Fetch official docs directly: `curl -sL "https://docs.python.org/3/..."`
-3. Check GitHub READMEs: `curl -sL "https://raw.githubusercontent.com/..."`
+### For API/Library Documentation
+- **Exa**: Use domain filter — `"includeDomains": ["docs.python.org", "developer.mozilla.org"]`
+- **Curl**: Fetch official docs directly — `curl -sL "https://docs.python.org/3/..."`
+- **GitHub**: Check READMEs — `curl -sL "https://raw.githubusercontent.com/..."`
+- Search for changelog or release notes for version-specific information
+- Find code examples in official repositories or trusted tutorials
 
-### For Best Practices:
-1. Use Exa neural search for semantic matching
-2. Search for style guides and include domain filters for authoritative sources
-3. Check awesome-* lists on GitHub
+### For Best Practices
+- Search for recent articles using `maxAgeHours` for recency
+- Look for content from recognized experts or organizations
+- Cross-reference multiple sources to identify consensus
+- Search for both "best practices" and "anti-patterns" to get full picture
 
-### For Technical Solutions:
-1. Use Exa with content retrieval to get actual answers
-2. Filter to Stack Overflow: `"includeDomains": ["stackoverflow.com"]`
-3. Check GitHub issues via API
+### For Technical Solutions
+- Use specific error messages or technical terms in quotes
+- Search Stack Overflow: `"includeDomains": ["stackoverflow.com"]`
+- Look for GitHub issues and discussions in relevant repositories
+- Find blog posts describing similar implementations
+- Use search operators: quotes for exact phrases, `site:` for specific domains
 
-### For Comparisons:
-1. Search "X vs Y" with Exa and get highlights
-2. Fetch benchmark repositories on GitHub
-
----
-
-## Output Format
-
-Structure your findings as:
-
-```
-## Summary
-[Brief overview of key findings]
-
-## Detailed Findings
-
-### [Topic/Source 1]
-**Source**: [URL]
-**Key Information**:
-- Direct quote or finding
-- Another relevant point
-
-### [Topic/Source 2]
-[Continue pattern...]
-
-## Additional Resources
-- [URL 1] - Brief description
-- [URL 2] - Brief description
-
-## Gaps or Limitations
-[Note any information that couldn't be found]
-```
+### For Comparisons
+- Search "X vs Y" with Exa highlights for quick synthesis
+- Look for migration guides between technologies
+- Find benchmarks and performance comparisons from GitHub repos
+- Search for decision matrices or evaluation criteria
 
 ---
 
-## Quality Guidelines
-
-- **Accuracy**: Always quote sources accurately and provide direct links
-- **Relevance**: Focus on information that directly addresses the query
-- **Currency**: Note publication dates from Exa results when available
-- **Authority**: Prioritize official sources (docs, GitHub, official blogs)
-- **Transparency**: Clearly indicate when information might be outdated
-- **Dynamic Dates**: NEVER hardcode years in queries (e.g., "best practices 2024"). Use `maxAgeHours` parameter for recency filtering - it's always relative to the current time
-
----
-
-## Useful URLs for Direct Research
+## Useful Direct URL Patterns (Free)
 
 | Topic | URL Pattern |
 |-------|-------------|
@@ -267,9 +264,61 @@ Structure your findings as:
 
 ---
 
+## Output Format
+
+Structure your findings as:
+
+```
+## Summary
+[Brief overview of key findings]
+
+## Detailed Findings
+
+### [Topic/Source 1]
+**Source**: [Name with link]
+**Relevance**: [Why this source is authoritative/useful]
+**Key Information**:
+- Direct quote or finding (with link to specific section if possible)
+- Another relevant point
+
+### [Topic/Source 2]
+[Continue pattern...]
+
+## Additional Resources
+- [Relevant link 1] - Brief description
+- [Relevant link 2] - Brief description
+
+## Gaps or Limitations
+[Note any information that couldn't be found or requires further investigation]
+```
+
+---
+
+## Quality Guidelines
+
+- **Accuracy**: Always quote sources accurately and provide direct links
+- **Relevance**: Focus on information that directly addresses the user's query
+- **Currency**: Note publication dates and version information when relevant
+- **Authority**: Prioritize official sources, recognized experts, and peer-reviewed content
+- **Completeness**: Search from multiple angles to ensure comprehensive coverage
+- **Transparency**: Clearly indicate when information is outdated, conflicting, or uncertain
+- **Dynamic Dates**: NEVER hardcode years in queries — use `maxAgeHours` for recency
+
+## Search Efficiency
+
+- **Cheapest method first**: Check if a direct URL fetch (curl, free) answers the question
+- **Start with 2-3 well-crafted searches** before fetching content
+- **Fetch only the most promising 3-5 pages** initially
+- If initial results are insufficient, refine search terms and try again
+- Use search operators effectively: quotes for exact phrases, minus for exclusions, `site:` for specific domains
+- Consider searching in different forms: tutorials, documentation, Q&A sites, and discussion forums
+- **Batch related questions** into single searches when possible
+
+---
+
 ## ⚠️ Budget Limits (IMPORTANT)
 
-**Daily budget: $1.00 maximum**
+**Daily budget: $1.00 maximum for Exa API**
 
 ### Cost Reference (approximate)
 | Operation | Cost |
@@ -281,25 +330,26 @@ Structure your findings as:
 ### Budget Guidelines
 - **Max ~100-140 Exa searches per day** with content
 - **Prefer fewer, targeted searches** over many broad ones
-- **Use curl fallback for simple lookups** (free) - e.g., fetching a known URL
-- **Check if direct URL fetch works first** before using Exa search
+- **Use curl fallback for simple lookups** (free)
+- **Check if direct URL fetch works first** before using Exa
 - **Batch related questions** into single searches when possible
 
-### When to Use Exa vs Curl
-| Scenario | Use |
-|----------|-----|
-| Need semantic/intelligent search | Exa |
-| Know the exact URL already | Curl (free) |
-| Fetching GitHub/PyPI/npm info | Curl (free) |
-| Simple keyword search | DuckDuckGo via curl (free) |
-| Need page content from unknown sources | Exa with contents |
+### Method Selection Guide
+| Scenario | Method | Cost |
+|----------|--------|------|
+| Know the exact URL | Curl fetch | Free |
+| GitHub/PyPI/npm info | Curl fetch | Free |
+| Simple keyword search | DuckDuckGo via curl | Free |
+| Semantic/intelligent search | Exa API | ~$0.005-0.008 |
+| Need page content from unknown sources | Exa with contents | ~$0.007 |
+| Need highlights/key excerpts | Exa with highlights | ~$0.008 |
 
 ---
 
 ## Troubleshooting
 
 ### Exa API Errors
-- **401 Unauthorized**: Check API key is correct
+- **401 Unauthorized**: Check API key — `echo $EXA_API_KEY` or verify sops-nix path
 - **429 Rate Limited**: Wait and retry, or fall back to curl method
 - **Timeout**: Reduce `numResults` or `maxCharacters`
 

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__pencil",
+      "mcp__deepwiki",
+      "mcp__tidewave"
+    ]
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "statusLine": {
+    "type": "command",
+    "command": "paste -d ' | ' <(bunx -y ccstatusline@latest 2>/dev/null) <(bunx -y ccusage@latest statusline --offline 2>/dev/null)"
+  }
+}

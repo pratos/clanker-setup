@@ -36,6 +36,20 @@ flakeSrc: {
     echo "pi sync: copying extensions"
     ${pkgs.rsync}/bin/rsync -a --delete "${flakeSrc}/extensions/" "$PI_DIR/extensions/"
 
+    # Sync Claude Code config
+    CLAUDE_DIR="$HOME/.claude"
+    mkdir -p "$CLAUDE_DIR"
+    
+    if [ -f "${flakeSrc}/claude/mcp.json" ]; then
+      cp -f "${flakeSrc}/claude/mcp.json" "$CLAUDE_DIR/mcp.json"
+      echo "pi sync: copied claude/mcp.json"
+    fi
+    
+    if [ -f "${flakeSrc}/claude/settings.json" ]; then
+      cp -f "${flakeSrc}/claude/settings.json" "$CLAUDE_DIR/settings.json"
+      echo "pi sync: copied claude/settings.json"
+    fi
+
     echo "pi sync: done"
   '';
 

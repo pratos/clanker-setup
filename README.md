@@ -6,6 +6,9 @@ This repo captures your Pi packages plus custom skills/extensions you want to sy
 
 - `pi/extensions.txt`: package sources for `pi install`
 - `pi/settings.json`: Pi settings snapshot (syncs to `~/.pi/agent/settings.json`)
+- `pi/mcp.json`: Pi MCP servers config (syncs to `~/.pi/agent/mcp.json`)
+- `claude/mcp.json`: Claude Code MCP servers config (syncs to `~/.claude/mcp.json`)
+- `claude/settings.json`: Claude Code settings (syncs to `~/.claude/settings.json`)
 - `skills/`: custom skills to sync into `~/.pi/agent/skills`
 - `extensions/`: custom extensions to sync into `~/.pi/agent/extensions`
 - `flake.nix` / `nix/home-module.nix`: home-manager module for declarative setup
