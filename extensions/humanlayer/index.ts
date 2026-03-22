@@ -32,6 +32,10 @@ interface ParsedMarkdown {
   body: string;
 }
 
+type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+const VALID_THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+
 interface AgentMeta {
   name: string;
   description: string;
@@ -39,6 +43,7 @@ interface AgentMeta {
   tools?: string; // raw: "LSP, Grep, Glob, LS"
   toolNames?: string[]; // parsed: ["lsp", "grep", "find", "ls"]
   model?: string; // e.g. "sonnet"
+  thinking?: ThinkingLevel; // e.g. "high"
   color?: string; // e.g. "blue", "yellow"
 }
 
@@ -350,9 +355,10 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
   let agents: AgentMeta[] = [];
   let ruleFiles: string[] = [];
 
-  // Tool/model restore state
+  // Tool/model/thinking restore state
   let savedTools: string[] | undefined;
   let savedModel: any = undefined;
+  let savedThinking: ThinkingLevel | undefined;
 
   // Tool activity tracking
   const toolHistory: ToolEntry[] = [];
@@ -400,6 +406,9 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
         tools: meta.tools,
         toolNames: parseToolsList(meta.tools),
         model: meta.model,
+        thinking: VALID_THINKING_LEVELS.includes(meta.thinking as ThinkingLevel)
+          ? (meta.thinking as ThinkingLevel)
+          : undefined,
         color: meta.color,
       };
     });
@@ -443,6 +452,18 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
             }
           }
 
+          // ── Save and set thinking level ──
+          if (agent.thinking) {
+            savedThinking = pi.getThinkingLevel() as ThinkingLevel;
+            pi.setThinkingLevel(agent.thinking);
+            if (ctx.hasUI) {
+              ctx.ui.notify(
+                `🧠 Thinking → ${agent.thinking}`,
+                "info"
+              );
+            }
+          }
+
           // ── Send agent prompt ──
           const prompt =
             agent.body + (args ? `\n\nTask: ${args}` : "");
@@ -462,7 +483,14 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
         const settings = JSON.parse(
           fs.readFileSync(settingsPath, "utf-8")
         );
-        if (settings.alwaysThinkingEnabled) {
+        // thinkingLevel: explicit level string (preferred)
+        if (
+          settings.thinkingLevel &&
+          VALID_THINKING_LEVELS.includes(settings.thinkingLevel)
+        ) {
+          pi.setThinkingLevel(settings.thinkingLevel);
+        } else if (settings.alwaysThinkingEnabled) {
+          // Legacy fallback: boolean → "high"
           pi.setThinkingLevel("high");
         }
       } catch {}
@@ -493,6 +521,10 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
       await pi.setModel(savedModel);
       savedModel = undefined;
     }
+    if (savedThinking) {
+      pi.setThinkingLevel(savedThinking);
+      savedThinking = undefined;
+    }
   });
 
   // ── System Prompt: Inject agent list + rules ──────────────────
@@ -506,6 +538,7 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
           let line = `- /agent:${a.name} — ${a.description}`;
           if (a.tools) line += ` [tools: ${a.tools}]`;
           if (a.model) line += ` [model: ${a.model}]`;
+          if (a.thinking) line += ` [thinking: ${a.thinking}]`;
           return line;
         })
         .join("\n");
