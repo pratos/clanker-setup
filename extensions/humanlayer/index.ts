@@ -496,18 +496,7 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
       } catch {}
     }
 
-    // ── Summary notification ──
-    const parts: string[] = [];
-    if (commands.length) parts.push(`${commands.length} commands`);
-    if (agents.length) parts.push(`${agents.length} agents`);
-    if (ruleFiles.length) parts.push(`${ruleFiles.length} rules`);
-    if (parts.length && ctx.hasUI) {
-      ctx.ui.notify(
-        `📋 .claude/ loaded: ${parts.join(", ")}`,
-        "info"
-      );
-      ctx.ui.setStatus("claude", `📋 .claude: ${parts.join(" · ")}`);
-    }
+    // Silent load — no notification or status bar clutter
   });
 
   // ── Restore tools/model after agent turn ──────────────────────
