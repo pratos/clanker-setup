@@ -46,12 +46,12 @@ if [[ -d "$EXT_SRC" ]]; then
 fi
 
 # Install npm dependencies for directory-based extensions with package.json
-# --unsafe-perm needed when activation runs as root (sudo darwin-rebuild switch)
+# chmod needed because rsync from nix store copies read-only permissions
 for ext_dir in "$EXT_DEST"/*/; do
   if [[ -f "${ext_dir}package.json" ]]; then
     echo "Installing deps for extension: $(basename "$ext_dir")"
     chmod -R u+rwX "$ext_dir" 2>/dev/null || true
-    (cd "$ext_dir" && npm install --omit=dev --unsafe-perm 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
+    (cd "$ext_dir" && npm install --omit=dev 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
   fi
 done
 
