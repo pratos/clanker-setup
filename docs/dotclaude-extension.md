@@ -1,4 +1,4 @@
-# HumanLayer Extension for Pi
+# dotclaude Extension for Pi
 
 A pi extension that integrates `.claude/` directory configuration — commands, agents, rules, and settings — with additional features: sandboxed code execution, a live tool activity panel, and session management.
 
@@ -289,7 +289,7 @@ Create `.claude/rules/your-rule.md` with any guidelines. The LLM will read it wh
 ```
 clanker-setup/
 ├── extensions/
-│   └── humanlayer/              # This extension
+│   └── dotclaude/               # This extension
 │       ├── index.ts             # Extension entry point (~1100 lines)
 │       ├── package.json         # @pydantic/monty dependency
 │       └── node_modules/        # Installed via npm
@@ -299,7 +299,7 @@ clanker-setup/
 │   │   ├── plan.md
 │   │   ├── implement.md
 │   │   └── debug.md
-│   ├── agents/                  # Sub-agents (HumanLayer frontmatter)
+│   ├── agents/                  # Sub-agents (HumanLayer-style frontmatter)
 │   │   ├── codebase-locator.md
 │   │   ├── codebase-analyzer.md
 │   │   ├── codebase-pattern-finder.md
@@ -320,7 +320,7 @@ clanker-setup/
 
 ## Deployment
 
-The extension is deployed to `~/.pi/agent/extensions/humanlayer/` via:
+The extension is deployed to `~/.pi/agent/extensions/dotclaude/` via:
 - **`pi-sync.sh`** — manual sync script
 - **`home-module.nix`** — Nix home-manager activation
 

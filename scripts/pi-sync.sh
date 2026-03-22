@@ -75,7 +75,7 @@ if [[ -f "$ROOT/claude/settings.json" ]]; then
   echo "Synced claude/settings.json -> $CLAUDE_DIR/settings.json"
 fi
 
-# Sync .claude/ subdirectories (commands, agents, rules) for HumanLayer extension
+# Sync .claude/ subdirectories (commands, agents, rules) for dotclaude extension
 for subdir in commands agents rules; do
   if [[ -d "$ROOT/claude/$subdir" ]]; then
     mkdir -p "$CLAUDE_DIR/$subdir"

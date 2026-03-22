@@ -1,9 +1,9 @@
 /**
- * HumanLayer-style .claude/ Extension for Pi
+ * dotclaude — .claude/ Directory Extension for Pi
  *
  * Discovers .claude/ directory and registers:
  * - commands/ → /name commands
- * - agents/ → /agent:name commands (with HumanLayer frontmatter: name, description, tools, model, color)
+ * - agents/ → /agent:name commands (with HumanLayer-style frontmatter: name, description, tools, model, color)
  * - rules/ → system prompt injection
  * - settings.json → thinking level, etc.
  *
@@ -101,7 +101,7 @@ function findMarkdownFiles(
   return results;
 }
 
-// ── Tool Name Mapping (HumanLayer → Pi) ────────────────────────────
+// ── Tool Name Mapping (Agent Frontmatter → Pi) ────────────────────────────
 
 const TOOL_NAME_MAP: Record<string, string> = {
   grep: "grep",
@@ -365,7 +365,7 @@ class ToolActivityPanel {
 
 // ── Extension Entry Point ──────────────────────────────────────────
 
-export default function humanlayerExtension(pi: ExtensionAPI) {
+export default function dotclaudeExtension(pi: ExtensionAPI) {
   let claudeDir = "";
   let commands: Array<{ name: string; description: string; body: string }> = [];
   let agents: AgentMeta[] = [];
@@ -561,6 +561,13 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event) => {
     let additions = "";
 
+    if (commands.length > 0) {
+      const cmdList = commands
+        .map((c) => `- /${c.name} — ${c.description}`)
+        .join("\n");
+      additions += `\n\n## Available Commands\n\nThe following slash commands are available. When a user's request matches a command's purpose, suggest they use it or invoke it directly:\n\n${cmdList}\n`;
+    }
+
     if (agents.length > 0) {
       const agentList = agents
         .map((a) => {
@@ -676,7 +683,7 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
         montyModule = require("@pydantic/monty");
       } catch (e) {
         throw new Error(
-          "code_execute requires @pydantic/monty. Run: cd ~/.pi/agent/extensions/humanlayer && npm install"
+          "code_execute requires @pydantic/monty. Run: cd ~/.pi/agent/extensions/dotclaude && npm install"
         );
       }
     }

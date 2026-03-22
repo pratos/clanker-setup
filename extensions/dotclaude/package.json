@@ -1,0 +1,11 @@
+{
+  "name": "dotclaude-pi-extension",
+  "version": "1.0.0",
+  "description": ".claude/ directory integration for Pi — commands, agents, rules, code_execute, tool activity panel",
+  "dependencies": {
+    "@pydantic/monty": "^0.0.8"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
