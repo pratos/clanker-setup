@@ -53,6 +53,7 @@ interface ToolEntry {
   startTime: number;
   endTime?: number;
   status: "running" | "done" | "error";
+  errorMsg?: string;
 }
 
 // ── Frontmatter Parser ─────────────────────────────────────────────
@@ -153,7 +154,15 @@ const MODEL_MAP: Record<string, { provider: string; pattern: RegExp }> = {
 function fmtTool(name: string, args: Record<string, any>, theme: any): string {
   switch (name) {
     case "bash": {
-      const cmd = (args.command || "...") as string;
+      const raw = (args.command || "...") as string;
+      // Skip shebangs, comments, set flags, empty lines — show the real command
+      const realLines = raw.split("\n").filter(
+        (l) => {
+          const t = l.trim();
+          return t && !t.startsWith("#") && !t.startsWith("set ") && t !== "set";
+        }
+      );
+      const cmd = (realLines[0] || raw.split("\n")[0] || "...").trim();
       return (
         theme.fg("muted", "$ ") +
         theme.fg("toolOutput", cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd)
@@ -304,6 +313,13 @@ class ToolActivityPanel {
       out.push(
         bdr("│") + pad(`${left}${" ".repeat(gap)}${elapsed} `) + bdr("│")
       );
+      // Show error detail line for failed tools
+      if (t.status === "error" && t.errorMsg) {
+        const errLine = t.errorMsg.split("\n")[0] || "";
+        out.push(
+          bdr("│") + pad(`   ${th.fg("error", "↳ " + errLine)}`) + bdr("│")
+        );
+      }
     }
 
     if (visible.length === 0) {
@@ -369,6 +385,13 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
   let panel: ToolActivityPanel | null = null;
   let firstToolOfTurn = true;
 
+  // Session naming state
+  let sessionNamed = false;
+
+  // Active agent tracking (for consolidated notification + summary)
+  let activeAgentName: string | null = null;
+  let agentTurnToolCount = 0;
+
   // ── Session Start: Discover .claude/ ──────────────────────────
 
   pi.on("session_start", async (_event, ctx) => {
@@ -417,16 +440,13 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
       pi.registerCommand(`agent:${agent.name}`, {
         description: agent.description,
         handler: async (args, ctx) => {
+          const configParts: string[] = [];
+
           // ── Save and scope tools ──
           if (agent.toolNames) {
             savedTools = pi.getActiveTools();
             pi.setActiveTools(agent.toolNames);
-            if (ctx.hasUI) {
-              ctx.ui.notify(
-                `🔧 Tools scoped to: ${agent.toolNames.join(", ")}`,
-                "info"
-              );
-            }
+            configParts.push(`${agent.toolNames.length} tools`);
           }
 
           // ── Save and set model ──
@@ -442,12 +462,7 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
               if (match) {
                 savedModel = ctx.model;
                 const ok = await pi.setModel(match);
-                if (ok && ctx.hasUI) {
-                  ctx.ui.notify(
-                    `🤖 Model → ${match.provider}/${match.id}`,
-                    "info"
-                  );
-                }
+                if (ok) configParts.push(agent.model);
               }
             }
           }
@@ -456,13 +471,20 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
           if (agent.thinking) {
             savedThinking = pi.getThinkingLevel() as ThinkingLevel;
             pi.setThinkingLevel(agent.thinking);
-            if (ctx.hasUI) {
-              ctx.ui.notify(
-                `🧠 Thinking → ${agent.thinking}`,
-                "info"
-              );
-            }
+            configParts.push(`thinking:${agent.thinking}`);
           }
+
+          // ── Consolidated notification ──
+          if (ctx.hasUI && configParts.length > 0) {
+            ctx.ui.notify(
+              `▸ ${agent.name} [${configParts.join(", ")}]`,
+              "info"
+            );
+          }
+
+          // ── Track active agent ──
+          activeAgentName = agent.name;
+          agentTurnToolCount = 0;
 
           // ── Send agent prompt ──
           const prompt =
@@ -496,7 +518,25 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
       } catch {}
     }
 
-    // Silent load — no notification or status bar clutter
+    // Check if session already has a name
+    if (pi.getSessionName()) sessionNamed = true;
+  });
+
+  // ── Session Auto-Naming ─────────────────────────────────────────
+
+  pi.on("input", async (event, _ctx) => {
+    if (sessionNamed || !event.text || event.source === "extension") return;
+
+    // Skip slash commands — wait for a real user message
+    if (event.text.startsWith("/")) return;
+
+    // Take first 50 chars of the first real user message as session name
+    const text = event.text.trim();
+    if (text.length > 0) {
+      const name = text.length > 50 ? text.slice(0, 50) + "…" : text;
+      pi.setSessionName(name);
+      sessionNamed = true;
+    }
   });
 
   // ── Restore tools/model after agent turn ──────────────────────
@@ -544,6 +584,86 @@ export default function humanlayerExtension(pi: ExtensionAPI) {
     if (additions) {
       return { systemPrompt: event.systemPrompt + additions };
     }
+  });
+
+  // ── /history Command ────────────────────────────────────────────
+
+  // Persistent history across turns (toolHistory is cleared each turn)
+  const sessionToolLog: ToolEntry[] = [];
+
+  pi.registerCommand("history", {
+    description: "Show tool execution history for this session",
+    handler: async (_args, ctx) => {
+      if (sessionToolLog.length === 0) {
+        ctx.ui.notify("No tool calls recorded yet", "info");
+        return;
+      }
+
+      const theme = ctx.ui.theme;
+      const lines: string[] = [];
+
+      // Group by turn (separated by gaps > 2s between entries)
+      let turnNum = 1;
+      let turnStart = sessionToolLog[0].startTime;
+      let turnTools = 0;
+      let turnTime = 0;
+      let turnErrors = 0;
+
+      lines.push(theme.bold("Tool Execution History"));
+      lines.push("");
+
+      for (let i = 0; i < sessionToolLog.length; i++) {
+        const t = sessionToolLog[i];
+        const prevEnd = i > 0 ? (sessionToolLog[i - 1].endTime ?? sessionToolLog[i - 1].startTime) : t.startTime;
+
+        // New turn if gap > 5s
+        if (i > 0 && t.startTime - prevEnd > 5000) {
+          lines.push(
+            theme.fg("dim", `  ─── turn ${turnNum}: ${turnTools} tools, ${(turnTime / 1000).toFixed(1)}s` +
+            (turnErrors ? theme.fg("error", `, ${turnErrors} err`) : "") + ` ───`)
+          );
+          lines.push("");
+          turnNum++;
+          turnTools = 0;
+          turnTime = 0;
+          turnErrors = 0;
+          turnStart = t.startTime;
+        }
+
+        turnTools++;
+        const dur = (t.endTime ?? Date.now()) - t.startTime;
+        turnTime += dur;
+        if (t.status === "error") turnErrors++;
+
+        const icon = t.status === "error"
+          ? theme.fg("error", "✗")
+          : theme.fg("success", "✓");
+        const elapsed = theme.fg("dim", `${(dur / 1000).toFixed(1)}s`);
+        const toolStr = fmtTool(t.name, t.args, theme);
+        lines.push(`  ${icon} ${toolStr}  ${elapsed}`);
+
+        if (t.status === "error" && t.errorMsg) {
+          lines.push(`    ${theme.fg("error", "↳ " + t.errorMsg.split("\n")[0])}`);
+        }
+      }
+
+      // Final turn summary
+      lines.push(
+        theme.fg("dim", `  ─── turn ${turnNum}: ${turnTools} tools, ${(turnTime / 1000).toFixed(1)}s` +
+        (turnErrors ? theme.fg("error", `, ${turnErrors} err`) : "") + ` ───`)
+      );
+      lines.push("");
+
+      // Totals
+      const totalTime = sessionToolLog.reduce((s, t) => s + ((t.endTime ?? Date.now()) - t.startTime), 0);
+      const totalErrors = sessionToolLog.filter(t => t.status === "error").length;
+      lines.push(
+        theme.bold(`Total: ${sessionToolLog.length} tools · ${(totalTime / 1000).toFixed(1)}s`) +
+        (totalErrors ? theme.fg("error", ` · ${totalErrors} errors`) : "")
+      );
+
+      ctx.ui.notify(lines.join("\n"), "info");
+    },
   });
 
   // ── Code Execute Tool (Pydantic Monty Sandbox) ────────────────
@@ -922,7 +1042,15 @@ Example:
     if (entry) {
       entry.endTime = Date.now();
       entry.status = event.isError ? "error" : "done";
+      if (event.isError && event.result) {
+        // Extract error text from result content
+        const texts = (event.result.content || [])
+          .filter((c: any) => c.type === "text")
+          .map((c: any) => c.text);
+        entry.errorMsg = texts.join("\n").slice(0, 120);
+      }
     }
+    agentTurnToolCount++;
 
     if (ctx.hasUI) {
       const theme = ctx.ui.theme;
@@ -952,20 +1080,35 @@ Example:
 
   // Agent end → summary + auto-dismiss
   pi.on("agent_end", async (_event, ctx) => {
-    if (ctx.hasUI && toolHistory.length > 0) {
+    const total = toolHistory.length;
+    const errors = toolHistory.filter((t) => t.status === "error").length;
+    const totalTime = toolHistory.reduce(
+      (s, t) => s + ((t.endTime ?? Date.now()) - t.startTime),
+      0
+    );
+
+    if (ctx.hasUI && total > 0) {
       const theme = ctx.ui.theme;
-      const total = toolHistory.length;
-      const errors = toolHistory.filter((t) => t.status === "error").length;
-      const totalTime = toolHistory.reduce(
-        (s, t) => s + ((t.endTime ?? Date.now()) - t.startTime),
-        0
-      );
+
+      // Status bar summary
       ctx.ui.setStatus(
         "tool-activity",
         `${theme.fg("success", "✓")} ${theme.fg("dim", `${total} tools · ${(totalTime / 1000).toFixed(1)}s`)}` +
           (errors ? theme.fg("error", ` · ${errors} err`) : "")
       );
+
+      // Agent turn summary notification (#5)
+      if (activeAgentName) {
+        const errText = errors ? ` · ${errors} errors` : "";
+        ctx.ui.notify(
+          `✓ ${activeAgentName} done: ${total} tools in ${(totalTime / 1000).toFixed(1)}s${errText}`,
+          errors ? "warning" : "info"
+        );
+      }
     }
+
+    activeAgentName = null;
+    agentTurnToolCount = 0;
 
     // Auto-hide panel 3s after agent completes
     setTimeout(() => {
@@ -974,7 +1117,9 @@ Example:
       }
     }, 3000);
 
-    // Clear history for next turn
+    // Persist to session log before clearing turn history
+    sessionToolLog.push(...toolHistory.map((t) => ({ ...t })));
+    if (sessionToolLog.length > 200) sessionToolLog.splice(0, sessionToolLog.length - 200);
     toolHistory.length = 0;
   });
 }
