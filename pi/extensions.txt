@@ -8,3 +8,4 @@ npm:pi-ghostty-theme-sync
 npm:@marckrenn/pi-sub-bar
 npm:pi-context
 npm:pi-rewind
+npm:pi-tool-display
