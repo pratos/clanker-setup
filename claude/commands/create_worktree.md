@@ -3,14 +3,13 @@
 2. set up worktree for implementation:
    2a. read `hack/create_worktree.sh` and create a new worktree with the a git flow branch name based on what the user will likely do next: `./hack/create_worktree.sh SHORT_CLEVER_NAME BRANCH_NAME`
 
-3a. confirm with the user by sending a message to the Human
+3a. Use the `clarify` tool to confirm with the user. Present the proposed worktree details and ask for confirmation:
+   - Option 1: "Yes, create it"
+   - Option 2: "Change the name"
+   - Option 3: "Change the branch name"
+   - Option 4: "Cancel"
 
-```
-based on the input, I plan to create a worktree with the following details:
-
-worktree path: ~/FULL_PATH
-branch name: BRANCH_NAME
-```
+   Include the proposed worktree path and branch name in the question prompt text.
 
 incorporate any user feedback then:
 

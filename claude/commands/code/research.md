@@ -18,12 +18,9 @@ You are tasked with conducting comprehensive research across the codebase to ans
 
 ## Initial Setup:
 
-When this command is invoked, respond with:
-```
-I'm ready to research the codebase. Please provide your research question or area of interest, and I'll analyze it thoroughly by exploring relevant components and connections.
-```
+When this command is invoked without a specific research query, use the `clarify` tool to ask the user what they want to research, with common research areas as options (e.g., "How a specific feature works", "Architecture/data flow of a system", "Find all code related to a concept", "Historical context for a decision") plus a free-text option.
 
-Then wait for the user's research query.
+Then proceed with their query.
 
 ## Steps to follow after receiving the research query:
 
@@ -172,6 +169,16 @@ Then wait for the user's research query.
    - Add a new section: `## Follow-up Research [timestamp]`
    - Spawn new sub-agents as needed for additional investigation
    - Continue updating the document
+
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions, gather preferences, or get clarification during research, you MUST use the `clarify` tool instead of printing questions as plain text. This includes:
+- Initial setup when no query is provided
+- Follow-up questions during research
+- Asking which direction to explore further
+- Confirming research scope
+
+The only exception is when presenting the final research report — that should be plain text/markdown.
 
 ## Important notes:
 - Always use parallel Task agents to maximize efficiency and minimize context usage

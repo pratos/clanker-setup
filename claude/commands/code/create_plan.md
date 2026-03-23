@@ -71,7 +71,10 @@ Then wait for the user's input.
    - Note assumptions that need verification
    - Determine true scope based on codebase reality
 
-5. **Present informed understanding and focused questions**:
+5. **Present informed understanding and ask focused questions**:
+   First, present your findings as a brief text summary, then use the `clarify` tool to ask any questions that your research couldn't answer. Only ask questions that you genuinely cannot answer through code investigation.
+
+   Present your understanding as text:
    ```
    Based on the ticket and my research of the codebase, I understand we need to [accurate summary].
 
@@ -79,14 +82,9 @@ Then wait for the user's input.
    - [Current implementation detail with file:line reference]
    - [Relevant pattern or constraint discovered]
    - [Potential complexity or edge case identified]
-
-   Questions that my research couldn't answer:
-   - [Specific technical question that requires human judgment]
-   - [Business logic clarification]
-   - [Design preference that affects implementation]
    ```
 
-   Only ask questions that you genuinely cannot answer through code investigation.
+   Then use `clarify` for any remaining questions — e.g. technical decisions, business logic clarifications, or design preferences that require human judgment.
 
 ### Step 2: Research & Discovery
 
@@ -127,29 +125,26 @@ After getting initial clarifications:
 3. **Wait for ALL sub-tasks to complete** before proceeding
 
 4. **Present findings and design options**:
+   Present your research findings as text, then use the `clarify` tool to let the user choose between design options and answer open questions.
+
+   Present findings as text:
    ```
    Based on my research, here's what I found:
 
    **Current State:**
    - [Key discovery about existing code]
    - [Pattern or convention to follow]
-
-   **Design Options:**
-   1. [Option A] - [pros/cons]
-   2. [Option B] - [pros/cons]
-
-   **Open Questions:**
-   - [Technical uncertainty]
-   - [Design decision needed]
-
-   Which approach aligns best with your vision?
    ```
+
+   Then use `clarify` with questions for design choices and open questions — e.g.:
+   - A question for the design approach with each option as a selectable choice (include pros/cons in descriptions)
+   - A question for each open technical/design decision that needs user input
 
 ### Step 3: Plan Structure Development
 
 Once aligned on approach:
 
-1. **Create initial plan outline**:
+1. **Create initial plan outline** and present it as text:
    ```
    Here's my proposed plan structure:
 
@@ -160,11 +155,9 @@ Once aligned on approach:
    1. [Phase name] - [what it accomplishes]
    2. [Phase name] - [what it accomplishes]
    3. [Phase name] - [what it accomplishes]
-
-   Does this phasing make sense? Should I adjust the order or granularity?
    ```
 
-2. **Get feedback on structure** before writing details
+2. **Get feedback on structure** using the `clarify` tool before writing details — ask if the phasing makes sense, if the order/granularity should be adjusted, or if phases need to be added/removed.
 
 ### Step 4: Detailed Plan Writing
 
@@ -294,6 +287,35 @@ After structure approval:
    - Add/remove scope items
 
 3. **Continue refining** until the user is satisfied
+
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions, gather preferences, or confirm decisions, you MUST use the `clarify` tool instead of printing questions as plain text. This applies to ALL interactive steps in this command.
+
+- Use `clarify` for initial context gathering (Step 1)
+- Use `clarify` for presenting design options and getting a choice (Step 2)
+- Use `clarify` for getting feedback on plan structure (Step 3)
+- Use `clarify` for review feedback (Step 5)
+
+Structure your questions with meaningful IDs, clear prompts, and well-defined options. Always include `allowOther: true` so the user can provide free-text answers when the predefined options don't fit.
+
+**Example**: When presenting design options:
+```json
+{
+  "questions": [{
+    "id": "approach",
+    "label": "Approach",
+    "prompt": "Which implementation approach do you prefer?",
+    "options": [
+      {"value": "option_a", "label": "Option A: [description]", "description": "[pros/cons summary]"},
+      {"value": "option_b", "label": "Option B: [description]", "description": "[pros/cons summary]"}
+    ],
+    "allowOther": true
+  }]
+}
+```
+
+The only exception is when you are presenting a final summary or report that doesn't require a structured choice — in that case, plain text is fine.
 
 ## Important Guidelines
 

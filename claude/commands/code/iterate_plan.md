@@ -18,26 +18,15 @@ When this command is invoked:
 2. **Handle different input scenarios**:
 
    **If NO plan file provided**:
-   ```
-   I'll help you iterate on an existing implementation plan.
-
-   Which plan would you like to update? Please provide the path to the plan file (e.g., `thoughts/_shared/plans/2025-10-16-feature.md`).
-
-   Tip: You can list recent plans with `ls -lt thoughts/_shared/plans/ | head`
-   ```
-   Wait for user input, then re-check for feedback.
+   List available plans by checking `thoughts/_shared/plans/`, then use the `clarify` tool to let the user select which plan to update.
 
    **If plan file provided but NO feedback**:
-   ```
-   I've found the plan at [path]. What changes would you like to make?
-
-   For example:
-   - "Add a phase for migration handling"
-   - "Update the success criteria to include performance tests"
-   - "Adjust the scope to exclude feature X"
-   - "Split Phase 2 into two separate phases"
-   ```
-   Wait for user input.
+   Use the `clarify` tool to ask what changes the user wants, with common change types as options:
+   - "Add a phase for [something]"
+   - "Update success criteria"
+   - "Adjust scope"
+   - "Split a phase into separate phases"
+   - "Other change (describe)"
 
    **If BOTH plan file AND feedback provided**:
    - Proceed immediately to Step 1
@@ -88,8 +77,9 @@ If the user's feedback requires understanding new code patterns or validating as
 
 ### Step 3: Present Understanding and Approach
 
-Before making changes, confirm your understanding:
+Before making changes, present your understanding as text, then use the `clarify` tool to confirm:
 
+Present understanding as text:
 ```
 Based on your feedback, I understand you want to:
 - [Change 1 with specific detail]
@@ -102,11 +92,9 @@ My research found:
 I plan to update the plan by:
 1. [Specific modification to make]
 2. [Another modification]
-
-Does this align with your intent?
 ```
 
-Get user confirmation before proceeding.
+Then use `clarify` to confirm alignment — e.g. "Does this match your intent?" with options like "Yes, proceed", "Partially — need adjustments", "No, let me re-explain".
 
 ### Step 4: Update the Plan
 
@@ -146,6 +134,19 @@ Get user confirmation before proceeding.
    ```
 
 **Be ready to iterate further** based on feedback
+
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions, gather preferences, or confirm decisions, you MUST use the `clarify` tool instead of printing questions as plain text. This applies to ALL interactive steps in this command.
+
+- Use `clarify` when asking which plan to update
+- Use `clarify` when asking what changes the user wants
+- Use `clarify` when confirming your understanding of changes (Step 3)
+- Use `clarify` when asking for further adjustments (Step 5)
+
+Structure your questions with meaningful IDs, clear prompts, and well-defined options. Always include `allowOther: true` so the user can provide free-text answers when the predefined options don't fit.
+
+The only exception is when you are presenting a final summary or report that doesn't require a structured choice — in that case, plain text is fine.
 
 ## Important Guidelines
 

@@ -16,7 +16,7 @@ When given a plan path:
 - Create a todo list to track your progress
 - Start implementing if you understand what needs to be done
 
-If no plan path provided, ask for one.
+If no plan path provided, list available plans from `thoughts/_shared/plans/` and use the `clarify` tool to let the user select one.
 
 ## Implementation Philosophy
 
@@ -47,22 +47,33 @@ After implementing a phase:
 - Fix any issues before proceeding
 - Update your progress in both the plan and your todos
 - Check off completed items in the plan file itself using Edit
-- **Pause for human verification**: After completing all automated verification for a phase, pause and inform the human that the phase is ready for manual testing. Use this format:
-  ```
-  Phase [N] Complete - Ready for Manual Verification
+- **Pause for human verification**: After completing all automated verification for a phase, present the results as text, then use the `clarify` tool to ask the user about manual testing status:
 
-  Automated verification passed:
+  Present as text:
+  ```
+  Phase [N] Complete - Automated verification passed:
   - [List automated checks that passed]
-
-  Please perform the manual verification steps listed in the plan:
-  - [List manual verification items from the plan]
-
-  Let me know when manual testing is complete so I can proceed to Phase [N+1].
   ```
+
+  Then use `clarify` to ask about manual verification with options like:
+  - "All manual tests pass — proceed to next phase"
+  - "Found issues — let me describe them"
+  - "Skip manual testing for now — proceed anyway"
+  - "Need more time — I'll come back to this"
 
 If instructed to execute multiple phases consecutively, skip the pause until the last phase. Otherwise, assume you are just doing one phase.
 
 Do not check off items in the manual testing steps until confirmed by the user.
+
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions, gather preferences, or confirm decisions, you MUST use the `clarify` tool instead of printing questions as plain text. This includes:
+- Asking which plan to implement when none is provided
+- Presenting mismatches and asking how to proceed
+- Pausing for manual verification confirmation
+- Any other point where you need user input
+
+The only exception is when presenting implementation status summaries — those can be plain text.
 
 ## If You Get Stuck
 

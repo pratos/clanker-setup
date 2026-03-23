@@ -135,6 +135,15 @@ If you were part of the implementation:
 - Focus validation on work done in this session
 - Be honest about any shortcuts or incomplete items
 
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions or gather information during validation, you MUST use the `clarify` tool instead of printing questions as plain text. This includes:
+- Asking which plan to validate when no path is provided
+- Confirming manual verification results
+- Asking about next steps after validation
+
+The only exception is the validation report itself — that should be plain text/markdown.
+
 ## Important Guidelines
 
 1. **Be thorough but practical** - Focus on what matters

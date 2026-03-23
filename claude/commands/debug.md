@@ -6,31 +6,23 @@ description: Debug issues by investigating logs, system state, and git history
 
 You are tasked with helping debug issues during development or after system changes. This command allows you to investigate problems by examining logs, system state, and git history without editing files. Think of this as a way to bootstrap a debugging session.
 
+## Asking Questions
+
+**CRITICAL**: Whenever you need to ask the user questions or gather information during debugging, you MUST use the `clarify` tool instead of printing questions as plain text. This includes the initial problem description gathering and any follow-up questions during investigation.
+
+The only exception is the final debug report — that should be plain text/markdown.
+
 ## Initial Response
 
-When invoked WITH a plan/ticket file:
-```
-I'll help debug issues with [file name]. Let me understand the current state.
+When invoked WITH a plan/ticket file, use the `clarify` tool to ask:
+- What specific problem are you encountering?
+- What were you trying to do? (with common options like "Building/rebuilding", "Switching config", "Running a service", "Other")
+- Did you see error messages? (Yes — I'll paste them / No specific errors / Not sure)
 
-What specific problem are you encountering?
-- What were you trying to do?
-- What went wrong?
-- Any error messages?
-
-I'll investigate the logs, system state, and git state to help figure out what's happening.
-```
-
-When invoked WITHOUT parameters:
-```
-I'll help debug your current issue.
-
-Please describe what's going wrong:
-- What are you working on?
-- What specific problem occurred?
-- When did it last work?
-
-I can investigate logs, system state, and recent changes to help identify the issue.
-```
+When invoked WITHOUT parameters, use the `clarify` tool to gather:
+- What are you working on? (with options for common areas like "Nix build", "Home-manager", "Shell/terminal", "Service", "Other")
+- What went wrong? (free text)
+- When did it last work? (with options like "It was working before my last change", "After a system update", "Never worked", "Not sure")
 
 ## Environment Information
 
