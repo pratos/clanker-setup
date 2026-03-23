@@ -1,0 +1,1 @@
+Run `rm -vf ~/.ssh/config; sudo darwin-rebuild switch --flake ${config.home.user-info.nixConfigDirectory}#tars; rm -fv ~/.ssh/config; ln -vs ~/bin/keys/config ~/.ssh/config` in the ./nixpkgs directory.

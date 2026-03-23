@@ -1,14 +1,32 @@
 {
   "permissions": {
     "allow": [
+      "Bash(./hack/understand_git_structure.sh)",
+      "Bash(hack/understand_git_structure.sh)",
+      "Bash(bash hack/understand_git_structure.sh)",
+      "Bash(./hack/spec_metadata.sh)",
+      "Bash(hack/spec_metadata.sh)",
+      "Bash(bash hack/spec_metadata.sh)",
+      "WebSearch",
+      "Edit(**)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:hex.pm)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:hexdocs.pm)",
       "mcp__pencil",
       "mcp__deepwiki",
-      "mcp__tidewave"
-    ]
+      "mcp__tidewave",
+      "mcp__browsermcp",
+      "mcp__shadcn"
+    ],
+    "deny": ["Bash(rm:-rf)"]
   },
+  "includeCoAuthoredBy": false,
   "skipDangerousModePermissionPrompt": true,
-  "statusLine": {
-    "type": "command",
-    "command": "bash -c 'paste -d \" | \" <(bunx -y ccstatusline@latest 2>/dev/null) <(bunx -y ccusage@latest statusline --offline 2>/dev/null)'"
+  "enabledMcpjsonServers": ["tidewave"],
+  "enableAllProjectMcpServers": true,
+  "cleanupPeriodDays": 30,
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
   }
 }
