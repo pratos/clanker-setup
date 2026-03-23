@@ -9,6 +9,6 @@
   "skipDangerousModePermissionPrompt": true,
   "statusLine": {
     "type": "command",
-    "command": "paste -d ' | ' <(bunx -y ccstatusline@latest 2>/dev/null) <(bunx -y ccusage@latest statusline --offline 2>/dev/null)"
+    "command": "bash -c 'paste -d \" | \" <(bunx -y ccstatusline@latest 2>/dev/null) <(bunx -y ccusage@latest statusline --offline 2>/dev/null)'"
   }
 }
