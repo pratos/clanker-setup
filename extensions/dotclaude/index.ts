@@ -314,6 +314,14 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
 
   // ── System Prompt: Inject agent list + rules ──────────────────
 
+  // ── Track files already read this session (for intercept logic) ──
+  const filesReadThisSession = new Set<string>();
+  let turnReadCount = 0;
+
+  pi.on("agent_start", async () => {
+    turnReadCount = 0;
+  });
+
   pi.on("before_agent_start", async (event) => {
     let additions = "";
 
@@ -344,8 +352,69 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
       additions += `\n\n## Project Rules\n\nThe following project rules are available in .claude/rules/:\n\n${rulesList}\n\nWhen working on tasks related to these rules, use the read tool to load the relevant rule files for guidance.\n`;
     }
 
+    // ── Search strategy guidance ──
+    additions += `\n\n## Search Strategy
+
+When you need to find or understand code, prefer targeted tools over reading entire files:
+
+1. **grep/find first** — Use \`grep\` for pattern matching and \`find\` for file discovery
+2. **code_execute for batch ops** — Use Python sandbox for multi-file analysis (3+ lookups)
+3. **read with offset/limit** — When you know the file, read only the relevant section
+4. **Avoid full-file reads for exploration** — Reading an entire unfamiliar file wastes context. Use grep to find the relevant lines first, then read with offset/limit.
+
+If you find yourself wanting to grep/find/read more than twice, use \`/agent:codebase-locator\` or \`code_execute\` instead.\n`;
+
     if (additions) {
       return { systemPrompt: event.systemPrompt + additions };
+    }
+  });
+
+  // ── Auto-intercept: catch exploratory full-file reads ──────────
+
+  pi.on("tool_call", async (event, ctx) => {
+    if (event.toolName !== "read") return;
+
+    const filePath = (event.input as any).path as string | undefined;
+    const offset = (event.input as any).offset as number | undefined;
+    const limit = (event.input as any).limit as number | undefined;
+
+    if (!filePath) return;
+
+    // Allow: reads with offset/limit (targeted), image files, small config files
+    if (offset || limit) return;
+
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Allow: images, configs, markdown — these are fine to read fully
+    const allowedExts = new Set([
+      ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+      ".json", ".yaml", ".yml", ".toml", ".ini", ".env",
+      ".md", ".txt", ".lock",
+    ]);
+    if (allowedExts.has(ext)) return;
+
+    // Allow: files we've already read this session (re-reads are intentional)
+    const resolved = path.resolve(ctx.cwd, filePath);
+    if (filesReadThisSession.has(resolved)) return;
+
+    // Track this read
+    filesReadThisSession.add(resolved);
+    turnReadCount++;
+
+    // Check file size — only intercept large files (>200 lines)
+    try {
+      const stat = fs.statSync(resolved);
+      if (stat.size < 5000) return; // ~200 lines, let small files through
+    } catch {
+      return; // file doesn't exist, let the read tool handle the error
+    }
+
+    // If this is the 3rd+ full-file read this turn, nudge harder
+    if (turnReadCount >= 3 && ctx.hasUI) {
+      ctx.ui.setStatus(
+        "search-hint",
+        "💡 Multiple full reads — consider grep, code_execute, or /agent:codebase-locator"
+      );
     }
   });
 
