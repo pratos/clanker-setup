@@ -173,6 +173,11 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 			return;
 		}
 
+		// Snapshot time so render() returns stable output between tool events.
+		// Using Date.now() inside render() causes output to change every TUI frame,
+		// which creates visual duplication glitches during interactive tools (e.g. clarify).
+		const snapshotNow = Date.now();
+
 		ctx.ui.setWidget(
 			"mctl-activity",
 			(_tui, theme) => ({
@@ -185,7 +190,7 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 					const done = toolHistory.filter((t) => t.status === "done").length;
 					const errors = toolHistory.filter((t) => t.status === "error").length;
 					const totalMs = toolHistory.reduce(
-						(s, t) => s + ((t.endTime ?? Date.now()) - t.startTime),
+						(s, t) => s + ((t.endTime ?? snapshotNow) - t.startTime),
 						0,
 					);
 
