@@ -12,6 +12,7 @@ import { matchesKey, Key, truncateToWidth } from "@mariozechner/pi-tui";
 import { execSync } from "node:child_process";
 import { basename, join } from "node:path";
 import { readdirSync, statSync, readFileSync } from "node:fs";
+import CliTable3 from "cli-table3";
 import type { MissionControlState, PiSession, SessionStatus } from "./state.js";
 import { shortenPath } from "./utils.js";
 
@@ -165,25 +166,85 @@ function findPiProcesses(myPid: number): PiSession[] {
  * Format CPU percentage for display
  */
 function formatCpu(cpu: number | undefined): string {
-	if (cpu === undefined) return "";
+	if (cpu === undefined) return "—";
 	return `${cpu.toFixed(1)}%`;
 }
 
 /**
- * Get status indicator icon and color
+ * Build a cli-table3 table for the sessions panel.
+ * Returns the table as an array of lines.
  */
-function renderStatus(
-	session: PiSession,
+function buildSessionsTable(
+	sessions: PiSession[],
+	currentCwd: string,
+	currentPid: number,
+	currentStatus: SessionStatus,
 	theme: Theme,
-): string {
-	switch (session.status) {
-		case "working":
-			return theme.fg("warning", "⟳ working");
-		case "idle":
-			return theme.fg("dim", "● idle");
-		default:
-			return theme.fg("dim", "? unknown");
+	selected: number,
+): string[] {
+	const t = theme;
+
+	// Create table with rounded corners
+	const table = new CliTable3({
+		chars: {
+			"top": "─", "top-mid": "┬", "top-left": "╭", "top-right": "╮",
+			"bottom": "─", "bottom-mid": "┴", "bottom-left": "╰", "bottom-right": "╯",
+			"left": "│", "left-mid": "├", "mid": "─", "mid-mid": "┼",
+			"right": "│", "right-mid": "┤", "middle": "│",
+		},
+		style: { head: [], border: [], "padding-left": 1, "padding-right": 1 },
+		head: [
+			t.fg("accent", ""),
+			t.fg("accent", "Status"),
+			t.fg("accent", "PID"),
+			t.fg("accent", "CWD"),
+			t.fg("accent", "CPU"),
+			t.fg("accent", "Detail"),
+		],
+		colWidths: [3, null, null, null, null, null],
+	});
+
+	// Current session row
+	const currentMarker = selected === 0 ? t.fg("accent", "▸") : " ";
+	const currentStatusStr = currentStatus === "working"
+		? t.fg("warning", "⟳ working")
+		: t.fg("success", "● this");
+	table.push([
+		currentMarker,
+		currentStatusStr,
+		t.fg("dim", String(currentPid)),
+		t.fg("muted", shortenPath(currentCwd)),
+		t.fg("dim", "—"),
+		t.fg("dim", "current session"),
+	]);
+
+	// Other sessions
+	for (let i = 0; i < sessions.length; i++) {
+		const s = sessions[i];
+		const marker = selected === i + 1 ? t.fg("accent", "▸") : " ";
+		const statusStr = s.status === "working"
+			? t.fg("warning", "⟳ working")
+			: t.fg("dim", "● idle");
+		const cpuStr = s.cpuPercent !== undefined ? formatCpu(s.cpuPercent) : "—";
+		const cpuColor = s.cpuPercent !== undefined && s.cpuPercent > CPU_WORKING_THRESHOLD ? "warning" : "dim";
+
+		// Build detail string
+		const detailParts: string[] = [];
+		if (s.elapsed) detailParts.push("⏱ " + s.elapsed);
+		if (s.statusDetail) detailParts.push(s.statusDetail);
+		const detail = detailParts.join(" · ") || "—";
+
+		table.push([
+			marker,
+			statusStr,
+			t.fg("dim", String(s.pid)),
+			t.fg("muted", shortenPath(s.cwd)),
+			t.fg(cpuColor, cpuStr),
+			t.fg("dim", detail),
+		]);
 	}
+
+	return table.toString().split("\n");
 }
 
 /**
@@ -235,63 +296,39 @@ class SessionsPanel {
 
 		const t = this.theme;
 		const lines: string[] = [];
-		const innerW = Math.max(20, width - 4);
 
 		// Title
-		lines.push("");
-		const totalCount = this.sessions.length + 1; // +1 for current
+		const totalCount = this.sessions.length + 1;
 		const workingCount = this.sessions.filter((s) => s.status === "working").length + (this.currentStatus === "working" ? 1 : 0);
 		let titleSuffix = t.fg("dim", ` (${totalCount} session${totalCount !== 1 ? "s" : ""})`);
 		if (workingCount > 0) {
 			titleSuffix += t.fg("warning", ` · ${workingCount} working`);
 		}
+
+		lines.push("");
 		lines.push(truncateToWidth("  " + t.fg("accent", t.bold("⌘ Pi Sessions")) + titleSuffix, width));
-		lines.push(truncateToWidth("  " + t.fg("dim", "─".repeat(innerW)), width));
+		lines.push("");
 
-		// Current session (this one)
-		const currentMarker = this.selected === 0 ? t.fg("accent", "▸ ") : "  ";
-		const currentStatusStr = this.currentStatus === "working"
-			? t.fg("warning", "⟳ working")
-			: t.fg("success", "● this session");
-		const currentLine =
-			currentMarker +
-			currentStatusStr +
-			t.fg("dim", "  PID " + this.currentPid) +
-			"  " +
-			t.fg("muted", shortenPath(this.currentCwd));
-		lines.push(truncateToWidth("  " + currentLine, width));
-
-		// Other sessions
-		if (this.sessions.length === 0) {
-			lines.push("");
-			lines.push(truncateToWidth("  " + t.fg("dim", "  No other pi sessions running"), width));
-		} else {
-			for (let i = 0; i < this.sessions.length; i++) {
-				const s = this.sessions[i];
-				const marker = this.selected === i + 1 ? t.fg("accent", "▸ ") : "  ";
-				const statusStr = renderStatus(s, t);
-				const pidStr = t.fg("dim", "PID " + s.pid);
-				const cwdStr = t.fg("muted", shortenPath(s.cwd));
-				const elapsedStr = s.elapsed ? t.fg("dim", "  ⏱ " + s.elapsed) : "";
-				const cpuStr = s.cpuPercent !== undefined ? t.fg("dim", "  cpu:" + formatCpu(s.cpuPercent)) : "";
-
-				// Main line: marker + status + PID + CWD
-				lines.push(truncateToWidth("  " + marker + statusStr + "  " + pidStr + "  " + cwdStr, width));
-
-				// Detail line: elapsed, CPU, and status detail (indented)
-				const detailParts: string[] = [];
-				if (s.elapsed) detailParts.push("⏱ " + s.elapsed);
-				if (s.cpuPercent !== undefined) detailParts.push("cpu: " + formatCpu(s.cpuPercent));
-				if (s.statusDetail) detailParts.push(s.statusDetail);
-
-				if (detailParts.length > 0) {
-					const indent = "      "; // align under status text
-					lines.push(truncateToWidth("  " + indent + t.fg("dim", detailParts.join("  ·  ")), width));
-				}
-			}
+		// Table
+		const tableLines = buildSessionsTable(
+			this.sessions,
+			this.currentCwd,
+			this.currentPid,
+			this.currentStatus,
+			t,
+			this.selected,
+		);
+		for (const line of tableLines) {
+			lines.push(truncateToWidth("  " + line, width));
 		}
 
-		// Footer hints
+		// Empty state
+		if (this.sessions.length === 0) {
+			lines.push("");
+			lines.push(truncateToWidth("  " + t.fg("dim", "No other pi sessions running"), width));
+		}
+
+		// Footer
 		lines.push("");
 		lines.push(truncateToWidth("  " + t.fg("dim", "↑↓ navigate  q/esc close"), width));
 		lines.push("");

@@ -586,5 +586,13 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		applyWidget(ctx);
 	}
 
-	return { applyWidget, togglePanel, scrollUp, scrollDown };
+	function getSessionToolLog(): ToolEntry[] {
+		return [...sessionToolLog, ...toolHistory.map(t => ({ ...t }))];
+	}
+
+	function getLoadedSkills(): Set<string> {
+		return new Set(loadedSkills);
+	}
+
+	return { applyWidget, togglePanel, scrollUp, scrollDown, getSessionToolLog, getLoadedSkills };
 }

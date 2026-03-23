@@ -1,0 +1,13 @@
+{
+  "name": "mission-control",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "cli-table3": "^0.6.5",
+    "cli-spinners": "^3.2.0",
+    "boxen": "^8.0.1"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

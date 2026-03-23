@@ -8,18 +8,20 @@
  *   - Context usage progress bar (below editor, segmented style)
  *   - Session tracker (other running pi instances)
  *   - Dynamic tab title with run status emoji
+ *   - Tabbed dashboard panel (Sessions, Breakdown, History, Context)
  *
  * Commands:
  *   /mctl off     — disable Mission Control UI
  *   /mctl on      — re-enable Mission Control UI
  *   /sessions     — show all running pi sessions
  *   /history      — show tool execution history
+ *   /dashboard    — open tabbed Mission Control dashboard
  *   /shortcuts    — show MCP servers & keyboard shortcuts
  *
  * Shortcuts:
  *   Ctrl+Alt+M      — toggle Mission Control visibility
  *   Ctrl+Shift+A    — toggle activity panel
- *   Ctrl+Shift+M    — open sessions panel
+ *   Ctrl+Shift+M    — open Mission Control dashboard (tabbed panel)
  *   Ctrl+Shift+J    — MCP servers & keyboard shortcuts
  */
 
@@ -29,6 +31,7 @@ import { setupContextBar } from "./context-bar.js";
 import { setupFooter } from "./footer.js";
 import { setupHeader } from "./header.js";
 import { setupMcpPanel } from "./mcp-panel.js";
+import { setupMissionControlPanel } from "./mission-control-panel.js";
 import { setupSessionTracker } from "./sessions.js";
 import { createState } from "./state.js";
 import { setupTabTitle } from "./tab-title.js";
@@ -39,11 +42,12 @@ export default function missionControl(pi: ExtensionAPI) {
 	// Wire up all modules
 	const { applyHeader } = setupHeader(pi, state);
 	const { applyFooter } = setupFooter(pi, state);
-	const { applyWidget: applyActivity, togglePanel: toggleActivity, scrollUp: scrollActivityUp, scrollDown: scrollActivityDown } = setupActivityPanel(pi, state);
+	const { applyWidget: applyActivity, togglePanel: toggleActivity, scrollUp: scrollActivityUp, scrollDown: scrollActivityDown, getSessionToolLog, getLoadedSkills } = setupActivityPanel(pi, state);
 	setupContextBar(pi, state);
 	const { openSessionsPanel } = setupSessionTracker(pi, state);
 	setupMcpPanel(pi);
 	setupTabTitle(pi, state);
+	const { openPanel: openDashboard } = setupMissionControlPanel(pi, state, getSessionToolLog, getLoadedSkills);
 
 	// ── Toggle command ──
 
@@ -130,9 +134,17 @@ export default function missionControl(pi: ExtensionAPI) {
 	});
 
 	pi.registerShortcut("ctrl+shift+m", {
-		description: "Open sessions panel",
+		description: "Open Mission Control dashboard",
 		handler: async (ctx) => {
-			await openSessionsPanel(ctx);
+			await openDashboard(ctx);
+		},
+	});
+
+	// /dashboard — tabbed Mission Control panel
+	pi.registerCommand("dashboard", {
+		description: "Open Mission Control dashboard (Sessions, Breakdown, History, Context)",
+		handler: async (_args, ctx) => {
+			await openDashboard(ctx);
 		},
 	});
 }

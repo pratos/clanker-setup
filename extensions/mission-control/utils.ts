@@ -78,12 +78,24 @@ export function shortenPath(p: string): string {
 	return p;
 }
 
-// Spinner frames for tool activity
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// Spinner frames from cli-spinners (rich spinner library with 70+ styles)
+import cliSpinners from "cli-spinners";
+
+// Use 'dots' as the default activity spinner (classic braille pattern)
+const ACTIVITY_SPINNER = (cliSpinners as any).dots?.frames ?? ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// Use 'arc' for a secondary spinner style
+const STATUS_SPINNER = (cliSpinners as any).arc?.frames ?? ["◜", "◠", "◝", "◞", "◡", "◟"];
+// Use 'aesthetic' for progress-like display
+const PROGRESS_SPINNER = (cliSpinners as any).aesthetic?.frames ?? ["▰▱▱▱▱▱▱", "▰▰▱▱▱▱▱", "▰▰▰▱▱▱▱", "▰▰▰▰▱▱▱", "▰▰▰▰▰▱▱", "▰▰▰▰▰▰▱", "▰▰▰▰▰▰▰", "▰▱▱▱▱▱▱"];
+
 let spinnerIndex = 0;
 
-export function getSpinnerFrame(): string {
-	const frame = SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length];
+export function getSpinnerFrame(style: "activity" | "status" | "progress" = "activity"): string {
+	const frames =
+		style === "status" ? STATUS_SPINNER :
+		style === "progress" ? PROGRESS_SPINNER :
+		ACTIVITY_SPINNER;
+	const frame = frames[spinnerIndex % frames.length];
 	spinnerIndex++;
 	return frame;
 }
