@@ -116,6 +116,20 @@ sync_configs() {
 	# --- AGENTS.md ---
 	[ -f "$ROOT/pi/AGENTS.md" ] && cp "$ROOT/pi/AGENTS.md" "$PI_DIR/AGENTS.md" && echo "→ Synced AGENTS.md"
 
+	# --- Pi prompt templates (separate from Claude commands) ---
+	if [ -d "$ROOT/pi/prompts" ]; then
+		local PROMPTS_DEST="$PI_DIR/prompts"
+		mkdir -p "$PROMPTS_DEST"
+		chmod -R u+rwX "$PROMPTS_DEST" 2>/dev/null || true
+		if command -v rsync >/dev/null 2>&1; then
+			rsync -a --delete "$ROOT/pi/prompts/" "$PROMPTS_DEST/"
+		else
+			find "$PROMPTS_DEST" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+			cp -R "$ROOT/pi/prompts/." "$PROMPTS_DEST/"
+		fi
+		echo "→ Synced pi/prompts → $PROMPTS_DEST"
+	fi
+
 	# --- Settings (merge if exists, copy if not) ---
 	if [ -f "$ROOT/pi/settings.json" ]; then
 		if [ -f "$PI_DIR/settings.json" ]; then
