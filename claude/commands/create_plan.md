@@ -27,8 +27,8 @@ Please provide:
 
 I'll analyze this information and work with you to create a comprehensive plan.
 
-Tip: You can also invoke this command with a ticket file directly: `/create_plan thoughts/anshul/tickets/eng_1234.md`
-For deeper analysis, try: `/create_plan think deeply about thoughts/anshul/tickets/eng_1234.md`
+Tip: You can also invoke this command with a ticket file directly: `/create_plan docs/plans/2026-03-22_setup-hermes-agent.md`
+For deeper analysis, try: `/create_plan think deeply about docs/plans/2026-03-22_setup-hermes-agent.md`
 ```
 
 Then wait for the user's input.
@@ -38,7 +38,7 @@ Then wait for the user's input.
 ### Step 1: Context Gathering & Initial Analysis
 
 1. **Read all mentioned files immediately and FULLY**:
-   - Ticket files (e.g., `thoughts/anshul/tickets/eng_1234.md`)
+   - Ticket/plan files (e.g., `docs/plans/2026-03-22_setup-hermes-agent.md`)
    - Research documents
    - Related implementation plans
    - Any JSON/data files mentioned
@@ -261,7 +261,7 @@ After structure approval:
 
 ## References
 
-- Original ticket: `thoughts/anshul/tickets/eng_XXXX.md`
+- Original ticket/plan: `docs/plans/YYYY-MM-DD_description.md`
 - Related research: `thoughts/_shared/research/[relevant].md`
 - Similar implementation: `[file:line]`
 ````
