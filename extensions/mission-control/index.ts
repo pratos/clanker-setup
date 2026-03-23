@@ -39,7 +39,7 @@ export default function missionControl(pi: ExtensionAPI) {
 	// Wire up all modules
 	const { applyHeader } = setupHeader(pi, state);
 	const { applyFooter } = setupFooter(pi, state);
-	const { applyWidget: applyActivity, togglePanel: toggleActivity } = setupActivityPanel(pi, state);
+	const { applyWidget: applyActivity, togglePanel: toggleActivity, scrollUp: scrollActivityUp, scrollDown: scrollActivityDown } = setupActivityPanel(pi, state);
 	setupContextBar(pi, state);
 	const { openSessionsPanel } = setupSessionTracker(pi, state);
 	setupMcpPanel(pi);
@@ -112,6 +112,20 @@ export default function missionControl(pi: ExtensionAPI) {
 		description: "Toggle activity panel",
 		handler: async (ctx) => {
 			toggleActivity(ctx);
+		},
+	});
+
+	pi.registerShortcut("ctrl+shift+up", {
+		description: "Scroll activity panel up",
+		handler: async (ctx) => {
+			scrollActivityUp(ctx);
+		},
+	});
+
+	pi.registerShortcut("ctrl+shift+down", {
+		description: "Scroll activity panel down",
+		handler: async (ctx) => {
+			scrollActivityDown(ctx);
 		},
 	});
 

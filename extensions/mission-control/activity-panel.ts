@@ -141,6 +141,8 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 	let autoHideTimer: ReturnType<typeof setTimeout> | undefined;
 	let firstToolOfTurn = true;
 	let userToggled = false; // when true, skip auto-show and auto-hide
+	let scrollOffset = 0; // 0 = pinned to bottom (latest), >0 = scrolled up
+	let userScrolled = false; // when true, don't auto-scroll to bottom on new tools
 
 	// ── Render widget ──
 
@@ -217,9 +219,16 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 						);
 					}
 
-					// ── Tool entries (last N) ──
-					const visible = toolHistory.slice(-MAX_VISIBLE);
-					const hiddenAbove = Math.max(0, toolHistory.length - MAX_VISIBLE);
+					// ── Tool entries (scrollable window) ──
+					const total = toolHistory.length;
+					// scrollOffset 0 = bottom (show latest), clamped to valid range
+					const maxOffset = Math.max(0, total - MAX_VISIBLE);
+					const clampedOffset = Math.min(Math.max(0, scrollOffset), maxOffset);
+					const startIdx = Math.max(0, total - MAX_VISIBLE - clampedOffset);
+					const endIdx = Math.min(total, startIdx + MAX_VISIBLE);
+					const visible = toolHistory.slice(startIdx, endIdx);
+					const hiddenAbove = startIdx;
+					const hiddenBelow = total - endIdx;
 
 					if (hiddenAbove > 0) {
 						lines.push(
@@ -262,6 +271,15 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 
 					if (visible.length === 0) {
 						lines.push(truncateToWidth("  " + theme.fg("dim", "No tool calls yet"), width));
+					}
+
+					if (hiddenBelow > 0) {
+						lines.push(
+							truncateToWidth(
+								"  " + theme.fg("dim", `↓ ${hiddenBelow} more`),
+								width,
+							),
+						);
 					}
 
 					// ── Bottom divider ──
@@ -402,6 +420,11 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		toolHistory.push(entry);
 		if (toolHistory.length > 50) toolHistory.shift();
 
+		// Auto-scroll to bottom on new tool (unless user scrolled up)
+		if (!userScrolled) {
+			scrollOffset = 0;
+		}
+
 		// Clear auto-hide timer if tools start again
 		if (autoHideTimer) {
 			clearTimeout(autoHideTimer);
@@ -483,6 +506,8 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 	pi.on("agent_start", async (_event, _ctx) => {
 		firstToolOfTurn = true;
 		userToggled = false; // reset manual override each turn
+		scrollOffset = 0;
+		userScrolled = false;
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {
@@ -528,5 +553,20 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		applyWidget(ctx);
 	}
 
-	return { applyWidget, togglePanel };
+	function scrollUp(ctx: ExtensionContext) {
+		if (!state.activityPanelVisible) return;
+		const maxOffset = Math.max(0, toolHistory.length - MAX_VISIBLE);
+		scrollOffset = Math.min(scrollOffset + 1, maxOffset);
+		userScrolled = scrollOffset > 0;
+		applyWidget(ctx);
+	}
+
+	function scrollDown(ctx: ExtensionContext) {
+		if (!state.activityPanelVisible) return;
+		scrollOffset = Math.max(0, scrollOffset - 1);
+		userScrolled = scrollOffset > 0;
+		applyWidget(ctx);
+	}
+
+	return { applyWidget, togglePanel, scrollUp, scrollDown };
 }
