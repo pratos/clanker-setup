@@ -11,6 +11,12 @@
       "url": "http://localhost:4000/tidewave/mcp",
       "lifecycle": "lazy",
       "idleTimeout": 30
+    },
+    "agentation": {
+      "command": "npx",
+      "args": ["-y", "agentation-mcp@latest", "server"],
+      "lifecycle": "lazy",
+      "idleTimeout": 10
     }
   }
 }

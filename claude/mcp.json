@@ -7,6 +7,10 @@
     "tidewave": {
       "type": "http",
       "url": "http://localhost:4000/tidewave/mcp"
+    },
+    "agentation": {
+      "command": "npx",
+      "args": ["-y", "agentation-mcp@latest", "server"]
     }
   }
 }

@@ -18,7 +18,7 @@
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { truncateHead, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@mariozechner/pi-coding-agent";
+import { isToolCallEventType, truncateHead, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Text, matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { Theme, TUI, OverlayHandle } from "@mariozechner/pi-tui";
@@ -227,6 +227,7 @@ class ToolActivityPanel {
     private tui: TUI,
     private theme: Theme,
     private history: ToolEntry[],
+    private skills: Set<string>,
     private done: () => void
   ) {}
 
@@ -278,6 +279,17 @@ class ToolActivityPanel {
         th.fg("dim", headerRight) +
         bdr("╮")
     );
+
+    // ── Loaded skills ──
+    if (this.skills.size > 0) {
+      const skillList = [...this.skills].sort().join(th.fg("dim", ", "));
+      out.push(
+        bdr("│") +
+          pad(` ${th.fg("accent", "📚")} ${th.fg("muted", "Skills:")} ${skillList}`) +
+          bdr("│")
+      );
+      out.push(bdr("├") + bdr("─".repeat(W)) + bdr("┤"));
+    }
 
     // ── Counters bar ──
     const counters = [
@@ -378,6 +390,9 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
 
   // Tool activity tracking
   const toolHistory: ToolEntry[] = [];
+
+  // Skill loading tracking
+  const loadedSkills = new Set<string>();
 
   // Overlay panel state
   let overlayHandle: OverlayHandle | null = null;
@@ -520,6 +535,18 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
 
     // Check if session already has a name
     if (pi.getSessionName()) sessionNamed = true;
+
+    // ── Restore loaded skills from session history ──
+    loadedSkills.clear();
+    for (const entry of ctx.sessionManager.getBranch()) {
+      if (
+        entry.type === "custom" &&
+        (entry as any).customType === "skill-tracker" &&
+        (entry as any).data?.skill
+      ) {
+        loadedSkills.add((entry as any).data.skill);
+      }
+    }
   });
 
   // ── Session Auto-Naming ─────────────────────────────────────────
@@ -593,6 +620,32 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
     }
   });
 
+  // ── Detect skill loading via read tool ──────────────────────────
+
+  pi.on("tool_call", async (event, _ctx) => {
+    if (!isToolCallEventType("read", event)) return;
+    const filePath = event.input.path;
+    if (!filePath) return;
+
+    const basename = path.basename(filePath);
+    if (basename !== "SKILL.md") return;
+
+    const skillName = path.basename(path.dirname(filePath));
+    if (!skillName || skillName === "." || skillName === "..") return;
+
+    if (!loadedSkills.has(skillName)) {
+      loadedSkills.add(skillName);
+
+      // Persist to session history
+      pi.appendEntry("skill-tracker", {
+        event: "skill_loaded",
+        skill: skillName,
+        skills: [...loadedSkills],
+        timestamp: Date.now(),
+      });
+    }
+  });
+
   // ── /history Command ────────────────────────────────────────────
 
   // Persistent history across turns (toolHistory is cleared each turn)
@@ -618,6 +671,12 @@ export default function dotclaudeExtension(pi: ExtensionAPI) {
 
       lines.push(theme.bold("Tool Execution History"));
       lines.push("");
+
+      if (loadedSkills.size > 0) {
+        const skillList = [...loadedSkills].sort().join(", ");
+        lines.push(theme.fg("accent", `📚 Skills loaded: ${skillList}`));
+        lines.push("");
+      }
 
       for (let i = 0; i < sessionToolLog.length; i++) {
         const t = sessionToolLog[i];
@@ -949,7 +1008,7 @@ Example:
     ctx.ui
       .custom<void>(
         (tui, theme, _kb, done) => {
-          panel = new ToolActivityPanel(tui, theme, toolHistory, () => {
+          panel = new ToolActivityPanel(tui, theme, toolHistory, loadedSkills, () => {
             panelVisible = false;
             panel = null;
             overlayHandle = null;
