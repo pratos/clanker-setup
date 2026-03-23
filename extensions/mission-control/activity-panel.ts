@@ -70,15 +70,33 @@ export interface ToolEntry {
 export function fmtTool(name: string, args: Record<string, any>, theme: any): string {
 	switch (name) {
 		case "bash": {
-			const raw = (args.command || "...") as string;
+			let raw = (args.command || "...") as string;
+
+			// Unwrap bash -c '...' / bash -c "..." wrappers to show the inner script
+			const bashCMatch = raw.match(/^bash\s+-c\s+['"](.*)$/s);
+			if (bashCMatch) {
+				// Strip the wrapper, use inner content
+				raw = bashCMatch[1].replace(/['"]$/, "");
+			}
+
 			const realLines = raw.split("\n").filter((l) => {
 				const t = l.trim();
-				return t && !t.startsWith("#") && !t.startsWith("set ") && t !== "set";
+				return t && !t.startsWith("#") && !t.startsWith("set ") && t !== "set" && t !== "'" && t !== '"';
 			});
-			const cmd = (realLines[0] || raw.split("\n")[0] || "...").trim();
+			const firstLine = (realLines[0] || raw.split("\n")[0] || "...").trim();
+
+			// For multi-line scripts, build a brief summary
+			let cmd: string;
+			if (realLines.length > 3) {
+				// Summarize: first meaningful line + line count
+				cmd = `${firstLine} (${realLines.length} lines)`;
+			} else {
+				cmd = firstLine;
+			}
+
 			return (
 				theme.fg("muted", "$ ") +
-				theme.fg("toolOutput", cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd)
+				theme.fg("toolOutput", cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd)
 			);
 		}
 		case "read": {
