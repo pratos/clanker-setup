@@ -44,6 +44,12 @@ flakeSrc: {
       fi
     done
 
+    # Sync AGENTS.md (global Pi agent instructions)
+    if [ -f "${flakeSrc}/pi/AGENTS.md" ]; then
+      cp -f "${flakeSrc}/pi/AGENTS.md" "$PI_DIR/AGENTS.md"
+      echo "pi sync: copied AGENTS.md"
+    fi
+
     # Sync Claude Code config
     CLAUDE_DIR="$HOME/.claude"
     mkdir -p "$CLAUDE_DIR"

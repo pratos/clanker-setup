@@ -1,82 +1,54 @@
-# Pi setup snapshot
+# Pi Setup
 
-This repo captures your Pi packages plus custom skills/extensions you want to sync to `~/.pi` on a new machine.
+Skills, extensions, and settings for [Pi coding agent](https://github.com/mariozechner/pi-coding-agent), synced to `~/.pi/agent/`.
 
 ## Contents
 
-- `pi/extensions.txt`: package sources for `pi install`
-- `pi/settings.json`: Pi settings snapshot (syncs to `~/.pi/agent/settings.json`)
-- `pi/mcp.json`: Pi MCP servers config (syncs to `~/.pi/agent/mcp.json`)
-- `claude/mcp.json`: Claude Code MCP servers config (syncs to `~/.claude/mcp.json`)
-- `claude/settings.json`: Claude Code settings (syncs to `~/.claude/settings.json`)
-- `skills/`: custom skills to sync into `~/.pi/agent/skills`
-- `extensions/`: custom extensions to sync into `~/.pi/agent/extensions`
-- `flake.nix` / `nix/home-module.nix`: home-manager module for declarative setup
+| Path                | Syncs to                    | Description                                                 |
+| ------------------- | --------------------------- | ----------------------------------------------------------- |
+| `skills/`           | `~/.pi/agent/skills/`       | Custom Pi skills                                            |
+| `extensions/`       | `~/.pi/agent/extensions/`   | Custom Pi extensions                                        |
+| `pi/settings.json`  | `~/.pi/agent/settings.json` | Pi settings                                                 |
+| `pi/mcp.json`       | `~/.pi/agent/mcp.json`      | MCP server config                                           |
+| `pi/extensions.txt` | —                           | Packages to `pi install`                                    |
+| `pi/AGENTS.md`      | `~/.pi/agent/AGENTS.md`     | Global agent instructions                                   |
+| `claude/`           | `~/.claude/`                | Claude Code config (settings, MCP, commands, agents, rules) |
 
 ## Setup
 
-### Nix / home-manager (recommended)
+### With Nix (recommended)
 
-Add this repo as a flake input and enable the module:
+Add as a flake input and enable the home-manager module:
 
 ```nix
-# flake.nix inputs
+# flake.nix
 inputs.clanker-setup.url = "github:pratos/clanker-setup";
 
-# in your home-manager modules list
+# home-manager modules
 inputs.clanker-setup.homeManagerModules.default
 
-# then in your home config (or a wrapper module)
+# home config
 programs.pi.enable = true;
 ```
 
-This will:
-1. Install prerequisite CLI tools (`bat`, `delta`, `glow`) via nix
-2. Declaratively sync skills, extensions, and settings into `~/.pi/agent/`
-3. Run `pi install` for each npm package in `pi/extensions.txt` during activation
+Options:
 
-**Options:**
-- `programs.pi.skipBootstrap = true` — skip the `pi install` activation step (useful in CI)
+- `programs.pi.skipBootstrap = true` — skip `pi install` during activation (useful in CI)
 
-### One-command setup (no nix)
+### Without Nix
 
 ```bash
 bash scripts/pi-setup.sh
 ```
 
-### Step-by-step (no nix)
+Installs prerequisites, syncs configs, and runs `pi install` for all extensions.
 
-1) Install required CLI tools (for some extensions):
+Set `SKIP_PREREQS=1` to skip system package installation (bat, git-delta, glow).
 
-```bash
-bash scripts/pi-prereqs.sh
-```
-
-Supports Homebrew (macOS) and Linux package managers: apt, dnf, yum, pacman, apk, zypper.
-On Debian/Ubuntu, the `bat` binary may be `batcat`.
-
-2) Install Pi:
-
-```bash
-npm install -g @mariozechner/pi-coding-agent
-```
-
-3) Install packages listed in `pi/extensions.txt`:
-
-```bash
-bash scripts/pi-install.sh
-```
-
-4) Sync skills/extensions/settings from this repo into `~/.pi`:
-
-```bash
-bash scripts/pi-sync.sh
-```
-
-## Update the package list (current machine)
+## Updating the package list
 
 ```bash
 bash scripts/pi-export.sh
 ```
 
-> Note: skills/extensions are synced from this repo; `pi install` only manages packages.
+Exports currently installed Pi packages back to `pi/extensions.txt`.
