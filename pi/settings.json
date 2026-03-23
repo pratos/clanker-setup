@@ -12,7 +12,8 @@
     "npm:@marckrenn/pi-sub-bar",
     "npm:pi-mcp-adapter",
     "npm:pi-context",
-    "npm:pi-rewind"
+    "npm:pi-rewind",
+    "npm:pi-tool-display"
   ],
   "enabledModels": [
     "anthropic/claude-haiku-4-5",
