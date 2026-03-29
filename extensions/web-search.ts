@@ -9,7 +9,7 @@
  *   - An active browser session (surf manages this automatically)
  *
  * Usage:
- *   WebSearch  — AI-powered search via surf perplexity
+ *   WebSearch  — AI-powered search via surf (ChatGPT/Claude preferred)
  *   WebFetch   — Navigate to a URL and read page content
  *   surf       — Run any surf command directly (navigate, click, type, etc.)
  */
@@ -39,15 +39,25 @@ async function runSurf(
 }
 
 export default function webSearchExtension(pi: ExtensionAPI) {
-  // ── WebSearch — AI-powered search via surf perplexity ──
+  // ── WebSearch — AI-powered search via surf (ChatGPT/Claude preferred) ──
   pi.registerTool({
     name: "WebSearch",
     label: "Web Search",
     description:
-      "Search the web for information using AI-powered search (Perplexity). " +
-      "Returns synthesized answers with sources. Use for general knowledge, documentation lookups, and research.",
+      "Search the web for information using AI-powered search via the surf browser. " +
+      "Defaults to Claude/ChatGPT sessions instead of Perplexity. " +
+      "Returns synthesized answers with sources when available.",
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
+      engine: Type.Optional(
+        Type.Union([
+          Type.Literal("claude"),
+          Type.Literal("chatgpt"),
+          Type.Literal("perplexity"),
+          Type.Literal("gemini"),
+          Type.Literal("google"),
+        ], { description: "Search engine (default: claude)." })
+      ),
     }),
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
@@ -60,18 +70,89 @@ export default function webSearchExtension(pi: ExtensionAPI) {
         details: {},
       });
 
-      try {
-        const escaped = shellEscape(params.query);
-        const { stdout, stderr } = await runSurf(
-          pi,
-          `surf perplexity '${escaped}'`,
-          signal,
-          90000
-        );
+      const engine = params.engine ?? "claude";
+      const preferredOrder = params.engine
+        ? [engine]
+        : ["claude", "chatgpt", "google"];
 
-        const output = (stdout || stderr || "").trim();
+      try {
+        const query = params.query;
+        const escapedQuery = shellEscape(query);
+        const encodedQuery = encodeURIComponent(query);
+        const prompt = `Search the web for: ${query}\nProvide a concise answer with sources and links.`;
+        const escapedPrompt = shellEscape(prompt);
+
+        const readCompact = async () => {
+          const { stdout, stderr } = await runSurf(
+            pi,
+            "surf read --compact",
+            signal,
+            30000
+          );
+          return (stdout || stderr || "").trim();
+        };
+
+        const searchWithEngine = async (engineName: string) => {
+          switch (engineName) {
+            case "perplexity": {
+              const { stdout, stderr } = await runSurf(
+                pi,
+                `surf perplexity '${escapedQuery}'`,
+                signal,
+                90000
+              );
+              return (stdout || stderr || "").trim();
+            }
+            case "gemini": {
+              const { stdout, stderr } = await runSurf(
+                pi,
+                `surf gemini '${escapedQuery}'`,
+                signal,
+                90000
+              );
+              return (stdout || stderr || "").trim();
+            }
+            case "google": {
+              await runSurf(pi, `surf go 'https://www.google.com/search?q=${encodedQuery}'`, signal, 30000);
+              await runSurf(pi, "surf wait 2", signal, 10000);
+              return await readCompact();
+            }
+            case "chatgpt": {
+              await runSurf(pi, "surf go 'https://chatgpt.com'", signal, 30000);
+              await runSurf(pi, "surf wait 2", signal, 10000);
+              await runSurf(pi, `surf type '${escapedPrompt}' --submit`, signal, 30000);
+              await runSurf(pi, "surf wait 12", signal, 20000);
+              return await readCompact();
+            }
+            case "claude": {
+              await runSurf(pi, "surf go 'https://claude.ai'", signal, 30000);
+              await runSurf(pi, "surf wait 2", signal, 10000);
+              await runSurf(pi, `surf type '${escapedPrompt}' --submit`, signal, 30000);
+              await runSurf(pi, "surf wait 12", signal, 20000);
+              return await readCompact();
+            }
+            default:
+              throw new Error(`Unsupported engine: ${engineName}`);
+          }
+        };
+
+        let output = "";
+        let usedEngine = engine;
+        let lastError: Error | undefined;
+
+        for (const candidate of preferredOrder) {
+          try {
+            usedEngine = candidate;
+            output = await searchWithEngine(candidate);
+            if (output) break;
+            throw new Error(`${candidate} returned empty output`);
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+          }
+        }
+
         if (!output) {
-          throw new Error("surf perplexity returned empty output");
+          throw lastError ?? new Error("Search returned empty output");
         }
 
         const truncated = truncateHead(output, 40000, 500);
@@ -79,47 +160,22 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: `## Search Results for: ${params.query}\n\n${truncated.text}`,
+              text: `## Search Results (${usedEngine}) for: ${params.query}\n\n${truncated.text}`,
             },
           ],
-          details: { query: params.query, truncated: truncated.truncated },
+          details: { query: params.query, engine: usedEngine, truncated: truncated.truncated },
         };
       } catch (error) {
-        // Fallback: DuckDuckGo HTML scrape
-        try {
-          const encodedQuery = encodeURIComponent(params.query);
-          const { stdout } = await runSurf(
-            pi,
-            `curl -sL "https://html.duckduckgo.com/html/?q=${encodedQuery}" | sed 's/<[^>]*>//g' | sed '/^$/d' | head -100`,
-            signal,
-            30000
-          );
-
-          const output = (stdout || "").trim();
-          if (!output) throw new Error("Fallback search also empty");
-
-          const truncated = truncateHead(output, 40000, 500);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `## Search Results for: ${params.query} (fallback)\n\n${truncated.text}`,
-              },
-            ],
-            details: { query: params.query, fallback: true, truncated: truncated.truncated },
-          };
-        } catch (_fallbackError) {
-          const errMsg = error instanceof Error ? error.message : String(error);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Search failed: ${errMsg}\n\nTip: Ensure 'surf' CLI is installed and has an active browser session.`,
-              },
-            ],
-            details: { error: errMsg },
-          };
-        }
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Search failed: ${errMsg}\n\nTip: Ensure 'surf' CLI is installed and has an active browser session.`,
+            },
+          ],
+          details: { error: errMsg, query: params.query, engine },
+        };
       }
     },
   });
@@ -183,25 +239,30 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           details: { url: params.url, truncated: truncated.truncated },
         };
       } catch (error) {
-        // Fallback: curl + html stripping
+        // Fallback: markdown.new (cleaner text rendering)
         try {
-          const escapedUrl = shellEscape(params.url);
-          const { stdout } = await runSurf(
+          const markdownUrl = `https://markdown.new/${params.url}`;
+          const escapedMarkdownUrl = shellEscape(markdownUrl);
+
+          await runSurf(pi, `surf go '${escapedMarkdownUrl}'`, signal, 30000);
+          await runSurf(pi, "surf wait 2", signal, 10000);
+
+          const { stdout, stderr } = await runSurf(
             pi,
-            `curl -sL --max-time 15 '${escapedUrl}' | sed 's/<script[^>]*>.*<\\/script>//g' | sed 's/<style[^>]*>.*<\\/style>//g' | sed 's/<[^>]*>//g' | sed '/^[[:space:]]*$/d' | head -500`,
+            "surf read --compact",
             signal,
-            20000
+            30000
           );
 
-          const output = (stdout || "").trim();
-          if (!output) throw new Error("Fallback fetch also empty");
+          const output = (stdout || stderr || "").trim();
+          if (!output) throw new Error("markdown.new returned empty output");
 
           const truncated = truncateHead(output, 45000, 1500);
           return {
             content: [
               {
                 type: "text",
-                text: `## Content from: ${params.url} (fallback - plain text)\n\n${truncated.text}`,
+                text: `## Content from: ${params.url} (fallback - markdown.new)\n\n${truncated.text}`,
               },
             ],
             details: { url: params.url, fallback: true, truncated: truncated.truncated },
@@ -240,6 +301,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       "  scroll              — Scroll page (--direction=down/up)\n" +
       "  wait <seconds>      — Wait N seconds\n" +
       "  perplexity <query>  — AI-powered web search\n" +
+      "  gemini <query>      — AI-powered web search (Gemini)\n" +
       "  grok <query>        — Query Grok AI (real-time X/Twitter data)\n" +
       "  tab.list            — List open tabs\n" +
       "  tab.new <url>       — Open new tab\n" +

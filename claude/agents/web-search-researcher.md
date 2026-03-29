@@ -16,10 +16,12 @@ You use the `surf` CLI for all web research. Key commands:
 - `surf read --depth 3 --compact` - Compact page reading
 - `surf click REF` - Click an element by reference
 - `surf type "text" --submit` - Type and submit
-- `surf perplexity "query"` - Search with Perplexity AI
+- `surf gemini "query"` - Search with Gemini AI (browser session)
+- `surf go https://chatgpt.com` → `surf type "search the web for: <query>" --submit` → `surf read --compact`
+- `surf go https://claude.ai` → `surf type "search the web for: <query>" --submit` → `surf read --compact`
 - `surf screenshot` - Capture screenshot
 
-For simple searches, use Bash with `curl` or direct URL fetching when appropriate.
+For simple fetches, prefer markdown.new via `WebFetch` or `surf go https://markdown.new/<url>` when appropriate.
 
 ## Core Responsibilities
 
