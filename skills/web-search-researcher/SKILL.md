@@ -45,7 +45,7 @@ When you receive a research query:
    - Refine with specific technical terms and phrases
    - Use multiple search variations to capture different perspectives
    - Include site-specific searches for known authoritative sources
-   - Use the cheapest method that fits (markdown.new/Google first, AI search when synthesis is needed)
+   - Use the cheapest method that fits (curl markdown.new/Google first, AI search when synthesis is needed)
 
 3. **Fetch and Analyze Content**:
    - Retrieve full content from promising search results
@@ -62,7 +62,7 @@ When you receive a research query:
 
 ---
 
-## Method 1: Google Search (Primary — Free)
+## Method 2: Google Search (Free)
 
 Use Google for broad, keyword-based, and domain-specific web searches.
 
@@ -108,7 +108,7 @@ surf read --compact
 
 ---
 
-## Method 2: ChatGPT Search (AI-Synthesized Answers)
+## Method 3: ChatGPT Search (AI-Synthesized Answers)
 
 Use ChatGPT's web search for synthesized, up-to-date answers with citations. Best when you need a quick, comprehensive summary with sources.
 
@@ -133,7 +133,7 @@ surf read --compact
 
 ---
 
-## Method 3: Claude Web Search (AI-Synthesized Answers)
+## Method 4: Claude Web Search (AI-Synthesized Answers)
 
 Use Claude's web search for another AI-synthesized perspective. Good for cross-referencing ChatGPT results.
 
@@ -153,26 +153,26 @@ surf read --compact
 
 ---
 
-## Method 4: Markdown.new Direct Fetch (Free — Clean Text)
+## Method 1: Direct Fetch via curl (Primary — Markdown.new)
 
-Use markdown.new for direct URL fetching and clean text rendering.
+Use curl against markdown.new for clean, direct text retrieval.
 
 ### Fetch a webpage directly
-```
-WebFetch url="https://markdown.new/https://docs.python.org/3/library/asyncio.html"
-WebFetch url="https://markdown.new/https://example.com"
+```bash
+curl -sL "https://markdown.new/https://docs.python.org/3/library/asyncio.html" | head -500
+curl -sL "https://markdown.new/https://example.com" | head -500
 ```
 
 ### Fetch GitHub content
-```
-WebFetch url="https://markdown.new/https://raw.githubusercontent.com/owner/repo/main/README.md"
+```bash
+curl -sL "https://markdown.new/https://raw.githubusercontent.com/owner/repo/main/README.md" | head -500
 ```
 
 ### Fetch JSON APIs (no markdown.new)
-```
-WebFetch url="https://api.github.com/repos/astral-sh/uv"
-WebFetch url="https://pypi.org/pypi/requests/json"
-WebFetch url="https://registry.npmjs.org/typescript"
+```bash
+curl -sL "https://api.github.com/repos/astral-sh/uv" | head -200
+curl -sL "https://pypi.org/pypi/requests/json" | head -200
+curl -sL "https://registry.npmjs.org/typescript" | head -200
 ```
 
 ---
@@ -228,8 +228,8 @@ curl -s "https://api.exa.ai/search" \
 
 ### For API/Library Documentation
 - **Google**: `site:docs.python.org asyncio` or fetch docs URLs directly
-- **Markdown.new**: `WebFetch url="https://markdown.new/https://docs.python.org/3/..."`
-- **GitHub**: `WebFetch url="https://markdown.new/https://raw.githubusercontent.com/..."`
+- **Markdown.new**: `curl -sL "https://markdown.new/https://docs.python.org/3/..." | head -500`
+- **GitHub**: `curl -sL "https://markdown.new/https://raw.githubusercontent.com/..." | head -500`
 - Search for changelog or release notes for version-specific information
 
 ### For Best Practices
@@ -256,7 +256,7 @@ curl -s "https://api.exa.ai/search" \
 
 | Scenario | Method | Cost |
 |----------|--------|------|
-| Know the exact URL | Markdown.new + WebFetch | Free |
+| Know the exact URL | curl + markdown.new | Free |
 | GitHub/PyPI/npm info | WebFetch (direct URL) | Free |
 | Keyword search with links | Google via surf/WebFetch | Free |
 | Site-specific search | Google with `site:` | Free |
@@ -265,7 +265,7 @@ curl -s "https://api.exa.ai/search" \
 | Semantic/intelligent search | Exa API | ~$0.005-0.008 |
 
 ### Fallback Order
-1. **First**: Check if you can fetch a known URL via markdown.new + WebFetch (FREE)
+1. **First**: Check if you can fetch a known URL via curl + markdown.new (FREE)
 2. **Second**: Google search for keyword/domain-specific results (FREE)
 3. **Third**: ChatGPT search for AI-synthesized answers with citations (FREE)
 4. **Fourth**: Claude search for cross-referencing or deeper analysis (FREE)
@@ -330,7 +330,7 @@ Structure your findings as:
 
 ## Search Efficiency
 
-- **Cheapest method first**: Check if a direct URL fetch via markdown.new + WebFetch answers the question
+- **Cheapest method first**: Check if a direct URL fetch via curl + markdown.new answers the question
 - **Google before AI search**: Use Google when you need specific links or domain-specific results
 - **AI search for synthesis**: Use ChatGPT/Claude when you need summarized, multi-source answers
 - **Start with 2-3 well-crafted searches** before fetching content

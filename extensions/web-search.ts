@@ -180,14 +180,14 @@ export default function webSearchExtension(pi: ExtensionAPI) {
     },
   });
 
-  // ── WebFetch — Navigate to URL and read page content ──
+  // ── WebFetch — Fetch URL content (curl + markdown.new first) ──
   pi.registerTool({
     name: "WebFetch",
     label: "Web Fetch",
     description:
-      "Fetch the content of a web page by URL. Navigates with a real browser, " +
-      "waits for the page to load, and returns the accessibility tree and visible text. " +
-      "Works with JS-heavy sites (Twitter/X, SPAs, etc.).",
+      "Fetch the content of a web page by URL. Uses markdown.new via curl first for clean text, " +
+      "then falls back to surf browser reading for JS-heavy sites. " +
+      "Returns readable text content.",
     parameters: Type.Object({
       url: Type.String({ description: "URL to fetch" }),
       selector: Type.Optional(
@@ -209,23 +209,19 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       });
 
       try {
-        const escapedUrl = shellEscape(params.url);
+        const markdownUrl = `https://markdown.new/${params.url}`;
+        const escapedMarkdownUrl = shellEscape(markdownUrl);
 
-        // Navigate and wait for page load
-        await runSurf(pi, `surf go '${escapedUrl}'`, signal, 30000);
-        await runSurf(pi, `surf wait 2`, signal, 10000);
-
-        // Read page content
         const { stdout, stderr } = await runSurf(
           pi,
-          `surf read --compact`,
+          `curl -sL --max-time 20 '${escapedMarkdownUrl}'`,
           signal,
-          30000
+          20000
         );
 
         const output = (stdout || stderr || "").trim();
         if (!output) {
-          throw new Error("surf read returned empty output");
+          throw new Error("curl markdown.new returned empty output");
         }
 
         const truncated = truncateHead(output, 45000, 1500);
@@ -236,17 +232,18 @@ export default function webSearchExtension(pi: ExtensionAPI) {
               text: `## Content from: ${params.url}\n\n${truncated.text}`,
             },
           ],
-          details: { url: params.url, truncated: truncated.truncated },
+          details: { url: params.url, truncated: truncated.truncated, method: "curl-markdown" },
         };
       } catch (error) {
-        // Fallback: markdown.new (cleaner text rendering)
+        // Fallback: surf browser read (JS-heavy sites)
         try {
-          const markdownUrl = `https://markdown.new/${params.url}`;
-          const escapedMarkdownUrl = shellEscape(markdownUrl);
+          const escapedUrl = shellEscape(params.url);
 
-          await runSurf(pi, `surf go '${escapedMarkdownUrl}'`, signal, 30000);
+          // Navigate and wait for page load
+          await runSurf(pi, `surf go '${escapedUrl}'`, signal, 30000);
           await runSurf(pi, "surf wait 2", signal, 10000);
 
+          // Read page content
           const { stdout, stderr } = await runSurf(
             pi,
             "surf read --compact",
@@ -255,17 +252,19 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           );
 
           const output = (stdout || stderr || "").trim();
-          if (!output) throw new Error("markdown.new returned empty output");
+          if (!output) {
+            throw new Error("surf read returned empty output");
+          }
 
           const truncated = truncateHead(output, 45000, 1500);
           return {
             content: [
               {
                 type: "text",
-                text: `## Content from: ${params.url} (fallback - markdown.new)\n\n${truncated.text}`,
+                text: `## Content from: ${params.url} (fallback - surf)\n\n${truncated.text}`,
               },
             ],
-            details: { url: params.url, fallback: true, truncated: truncated.truncated },
+            details: { url: params.url, fallback: true, truncated: truncated.truncated, method: "surf" },
           };
         } catch (_fallbackError) {
           const errMsg = error instanceof Error ? error.message : String(error);
