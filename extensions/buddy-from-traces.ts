@@ -1125,23 +1125,6 @@ function enemyOfTheDay(failureByTool: Record<string, number>): string {
   return ENEMY_ALIAS[top] ?? `${top} Warlord`;
 }
 
-function nextQuest(seed: number): QuestState {
-  const templates: Array<Omit<QuestState, "id" | "progress" | "completed">> = [
-    { kind: "fix-lint", text: "Training quest: clear one lint/typecheck failure.", target: 1, rewardMood: 6, rewardEnergy: 5 },
-    { kind: "write-failing-test", text: "Training quest: write one failing test first.", target: 1, rewardMood: 7, rewardEnergy: 4 },
-    { kind: "pass-test-streak", text: "Training quest: pass tests in a 3-win streak.", target: 3, rewardMood: 8, rewardEnergy: 6 },
-    { kind: "surgical-edits", text: "Training quest: land 3 surgical edits.", target: 3, rewardMood: 6, rewardEnergy: 7 },
-    { kind: "grep-read", text: "Training quest: grep then read to isolate root cause.", target: 2, rewardMood: 5, rewardEnergy: 6 },
-  ];
-
-  const t = templates[seed % templates.length] ?? templates[0]!;
-  return {
-    ...t,
-    id: `q-${Date.now()}-${seed % 10000}`,
-    progress: 0,
-    completed: false,
-  };
-}
 
 function buildStats(insights: Insights, fighter: Fighter): Record<StatKey, number> {
   const totalOps = Math.max(1, insights.toolResults);
@@ -1256,11 +1239,6 @@ function renderSprite(profile: BuddyProfile, state: BuddyState): string[] {
   });
 }
 
-function moodGlyph(state: BuddyState): string {
-  if (state.mood >= 75) return "🔥";
-  if (state.mood >= 45) return "⚡";
-  return "😴";
-}
 
 function renderCard(profile: BuddyProfile, insights: Insights, state: BuddyState, currentContextTokens?: number): string {
   const topToolsText = profile.topTools.map((t) => `${t.tool}(${t.count})`).join(", ") || "n/a";
