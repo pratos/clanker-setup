@@ -1677,8 +1677,11 @@ export default function buddyFromTracesExtension(pi: ExtensionAPI): void {
     const insights = await getInsights(state.scope, ctx.cwd);
     if (insights.sessions === 0) return null;
 
+    // Always use ALL traces for fighter selection so the character is consistent
+    // across projects and unlocks are based on total activity.
+    const allInsights = state.scope === "all" ? insights : await getInsights("all", ctx.cwd);
     const forced = state.chosenFighterId ?? state.lockedFighterId;
-    state.profile = buildProfile(insights, forced);
+    state.profile = buildProfile(allInsights.sessions > 0 ? allInsights : insights, forced);
 
     if (!state.lockedFighterId && state.profile?.fighter.id) {
       state.lockedFighterId = state.profile.fighter.id;
