@@ -1,6 +1,6 @@
 ---
 description: Create a git commit, push it
-model: claude-3-5-haiku-20241022
+model: claude-3-5-haiku-latest
 ---
 
 ## Context
