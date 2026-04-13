@@ -1,17 +1,19 @@
 /**
- * Web Search & Browse Extension (surf-cli native)
+ * Web Search & Fetch Extension (curl + Exa + Parallel)
  *
- * Provides web tools powered by `surf` CLI for browser automation.
- * Three tools: WebSearch (AI search), WebFetch (page reading), surf (direct commands).
+ * Provides reliable web tools using:
+ *   - curl + markdown.new for page fetching (primary)
+ *   - Exa API for semantic search
+ *   - Parallel API for agentic search
+ *   - Google via curl for free keyword search
  *
- * Requirements:
- *   - `surf` CLI installed and available in PATH (npm i -g @anthropic/surf)
- *   - An active browser session (surf manages this automatically)
+ * API keys are read from sops-nix secrets:
+ *   - ~/.config/sops-nix/secrets/exa/api-key
+ *   - ~/.config/sops-nix/secrets/parallel/api-key
  *
  * Usage:
- *   WebSearch  — AI-powered search via surf (ChatGPT/Claude preferred)
- *   WebFetch   — Navigate to a URL and read page content
- *   surf       — Run any surf command directly (navigate, click, type, etc.)
+ *   WebSearch  — Search the web via Exa, Parallel, or Google
+ *   WebFetch   — Fetch page content via curl + markdown.new
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -23,12 +25,12 @@ function shellEscape(s: string): string {
   return s.replace(/'/g, "'\\''");
 }
 
-/** Run a surf command via bash shell (more reliable output capture than direct exec) */
-async function runSurf(
+/** Run a bash command and return stdout/stderr/exitCode */
+async function runBash(
   pi: ExtensionAPI,
   command: string,
   signal?: AbortSignal,
-  timeout = 60000
+  timeout = 30000
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const result = await pi.exec("bash", ["-c", command], { signal, timeout });
   return {
@@ -38,25 +40,40 @@ async function runSurf(
   };
 }
 
+/** Read a sops-nix secret file, returns empty string if not found */
+async function readSecret(
+  pi: ExtensionAPI,
+  path: string,
+  signal?: AbortSignal
+): Promise<string> {
+  try {
+    const { stdout } = await runBash(pi, `cat '${shellEscape(path)}' 2>/dev/null`, signal, 5000);
+    return stdout.trim();
+  } catch {
+    return "";
+  }
+}
+
 export default function webSearchExtension(pi: ExtensionAPI) {
-  // ── WebSearch — AI-powered search via surf (ChatGPT/Claude preferred) ──
+  // ── WebSearch — Search via Exa, Parallel, or Google ──
   pi.registerTool({
     name: "WebSearch",
     label: "Web Search",
     description:
-      "Search the web for information using AI-powered search via the surf browser. " +
-      "Defaults to Claude/ChatGPT sessions instead of Perplexity. " +
-      "Returns synthesized answers with sources when available.",
+      "Search the web for information. Uses Exa (semantic search), " +
+      "Parallel (agentic search), or Google (free keyword search). " +
+      "Returns search results with titles, URLs, and descriptions/highlights.",
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       engine: Type.Optional(
-        Type.Union([
-          Type.Literal("claude"),
-          Type.Literal("chatgpt"),
-          Type.Literal("perplexity"),
-          Type.Literal("gemini"),
-          Type.Literal("google"),
-        ], { description: "Search engine (default: claude)." })
+        Type.Union(
+          [
+            Type.Literal("exa"),
+            Type.Literal("parallel"),
+            Type.Literal("google"),
+          ],
+          { description: "Search engine (default: exa). Use 'google' for free keyword search, 'exa' for semantic search, 'parallel' for agentic/deep search." }
+        )
       ),
     }),
 
@@ -65,94 +82,112 @@ export default function webSearchExtension(pi: ExtensionAPI) {
         return { content: [{ type: "text", text: "Cancelled" }] };
       }
 
+      const engine = params.engine ?? "exa";
+
       onUpdate?.({
-        content: [{ type: "text", text: `Searching: ${params.query}...` }],
+        content: [{ type: "text", text: `Searching (${engine}): ${params.query}...` }],
         details: {},
       });
 
-      const engine = params.engine ?? "claude";
-      const preferredOrder = params.engine
-        ? [engine]
-        : ["claude", "chatgpt", "google"];
-
       try {
         const query = params.query;
-        const escapedQuery = shellEscape(query);
-        const encodedQuery = encodeURIComponent(query);
-        const prompt = `Search the web for: ${query}\nProvide a concise answer with sources and links.`;
-        const escapedPrompt = shellEscape(prompt);
-
-        const readCompact = async () => {
-          const { stdout, stderr } = await runSurf(
-            pi,
-            "surf read --compact",
-            signal,
-            30000
-          );
-          return (stdout || stderr || "").trim();
-        };
-
-        const searchWithEngine = async (engineName: string) => {
-          switch (engineName) {
-            case "perplexity": {
-              const { stdout, stderr } = await runSurf(
-                pi,
-                `surf perplexity '${escapedQuery}'`,
-                signal,
-                90000
-              );
-              return (stdout || stderr || "").trim();
-            }
-            case "gemini": {
-              const { stdout, stderr } = await runSurf(
-                pi,
-                `surf gemini '${escapedQuery}'`,
-                signal,
-                90000
-              );
-              return (stdout || stderr || "").trim();
-            }
-            case "google": {
-              await runSurf(pi, `surf go 'https://www.google.com/search?q=${encodedQuery}'`, signal, 30000);
-              await runSurf(pi, "surf wait 2", signal, 10000);
-              return await readCompact();
-            }
-            case "chatgpt": {
-              await runSurf(pi, "surf go 'https://chatgpt.com'", signal, 30000);
-              await runSurf(pi, "surf wait 2", signal, 10000);
-              await runSurf(pi, `surf type '${escapedPrompt}' --submit`, signal, 30000);
-              await runSurf(pi, "surf wait 12", signal, 20000);
-              return await readCompact();
-            }
-            case "claude": {
-              await runSurf(pi, "surf go 'https://claude.ai'", signal, 30000);
-              await runSurf(pi, "surf wait 2", signal, 10000);
-              await runSurf(pi, `surf type '${escapedPrompt}' --submit`, signal, 30000);
-              await runSurf(pi, "surf wait 12", signal, 20000);
-              return await readCompact();
-            }
-            default:
-              throw new Error(`Unsupported engine: ${engineName}`);
-          }
-        };
-
         let output = "";
         let usedEngine = engine;
-        let lastError: Error | undefined;
 
-        for (const candidate of preferredOrder) {
-          try {
-            usedEngine = candidate;
-            output = await searchWithEngine(candidate);
-            if (output) break;
-            throw new Error(`${candidate} returned empty output`);
-          } catch (err) {
-            lastError = err instanceof Error ? err : new Error(String(err));
+        if (engine === "exa") {
+          const apiKey = await readSecret(pi, `${process.env.HOME}/.config/sops-nix/secrets/exa/api-key`, signal);
+          if (!apiKey) {
+            throw new Error("Exa API key not found at ~/.config/sops-nix/secrets/exa/api-key");
           }
-        }
 
-        if (!output) {
-          throw lastError ?? new Error("Search returned empty output");
+          const escapedKey = shellEscape(apiKey);
+          const { stdout, stderr, exitCode } = await runBash(
+            pi,
+            `curl -s --max-time 20 "https://api.exa.ai/search" ` +
+              `-H "x-api-key: ${escapedKey}" ` +
+              `-H "Content-Type: application/json" ` +
+              `-d '${shellEscape(JSON.stringify({
+                query,
+                numResults: 8,
+                type: "auto",
+                contents: { highlights: true },
+              }))}'`,
+            signal,
+            25000
+          );
+
+          if (exitCode !== 0 || !stdout.trim()) {
+            throw new Error(`Exa search failed: ${stderr || "empty response"}`);
+          }
+
+          // Parse and format results
+          try {
+            const data = JSON.parse(stdout);
+            const results = (data.results || []).map((r: any, i: number) => {
+              const highlights = (r.highlights || []).join("\n  ");
+              return `${i + 1}. **${r.title || "Untitled"}**\n   ${r.url}\n  ${highlights}`;
+            });
+            output = results.join("\n\n") || "No results found.";
+          } catch {
+            output = stdout; // Return raw JSON if parsing fails
+          }
+          usedEngine = "exa";
+
+        } else if (engine === "parallel") {
+          const apiKey = await readSecret(pi, `${process.env.HOME}/.config/sops-nix/secrets/parallel/api-key`, signal);
+          if (!apiKey) {
+            throw new Error("Parallel API key not found at ~/.config/sops-nix/secrets/parallel/api-key");
+          }
+
+          const escapedKey = shellEscape(apiKey);
+          const { stdout, stderr, exitCode } = await runBash(
+            pi,
+            `curl -s --max-time 30 "https://api.parallel.ai/v1/beta/search" ` +
+              `-H "Authorization: Bearer ${escapedKey}" ` +
+              `-H "Content-Type: application/json" ` +
+              `-d '${shellEscape(JSON.stringify({
+                search_queries: [query],
+                objective: query,
+                mode: "agentic",
+                max_results: 8,
+              }))}'`,
+            signal,
+            35000
+          );
+
+          if (exitCode !== 0 || !stdout.trim()) {
+            throw new Error(`Parallel search failed: ${stderr || "empty response"}`);
+          }
+
+          try {
+            const data = JSON.parse(stdout);
+            const results = (data.results || []).map((r: any, i: number) => {
+              const excerpts = (r.excerpts || []).join("\n  ");
+              return `${i + 1}. **${r.title || "Untitled"}**\n   ${r.url}\n  ${excerpts}`;
+            });
+            output = results.join("\n\n") || "No results found.";
+          } catch {
+            output = stdout;
+          }
+          usedEngine = "parallel";
+
+        } else {
+          // Google via curl + markdown.new
+          const encodedQuery = encodeURIComponent(query);
+          const { stdout, stderr } = await runBash(
+            pi,
+            `curl -sL --max-time 15 ` +
+              `-H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" ` +
+              `"https://markdown.new/https://www.google.com/search?q=${encodedQuery}"`,
+            signal,
+            20000
+          );
+
+          output = (stdout || stderr || "").trim();
+          if (!output) {
+            throw new Error("Google search returned empty output");
+          }
+          usedEngine = "google";
         }
 
         const truncated = truncateHead(output, 40000, 500);
@@ -171,7 +206,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: `Search failed: ${errMsg}\n\nTip: Ensure 'surf' CLI is installed and has an active browser session.`,
+              text: `Search failed (${engine}): ${errMsg}`,
             },
           ],
           details: { error: errMsg, query: params.query, engine },
@@ -180,20 +215,21 @@ export default function webSearchExtension(pi: ExtensionAPI) {
     },
   });
 
-  // ── WebFetch — Fetch URL content (curl + markdown.new first) ──
+  // ── WebFetch — Fetch URL content via curl + markdown.new ──
   pi.registerTool({
     name: "WebFetch",
     label: "Web Fetch",
     description:
-      "Fetch the content of a web page by URL. Uses markdown.new via curl first for clean text, " +
-      "then falls back to surf browser reading for JS-heavy sites. " +
-      "Returns readable text content.",
+      "Fetch the content of a web page by URL. Uses curl + markdown.new for clean " +
+      "markdown text. Works reliably for most pages including documentation, blogs, " +
+      "and articles. For JSON APIs, fetches raw JSON directly.",
     parameters: Type.Object({
       url: Type.String({ description: "URL to fetch" }),
       selector: Type.Optional(
         Type.String({
           description:
-            "Optional CSS selector to focus on specific content (e.g., 'main', 'article', '.content')",
+            "Optional CSS selector to focus on specific content (e.g., 'main', 'article', '.content'). " +
+            "Note: selector filtering is best-effort with markdown.new.",
         })
       ),
     }),
@@ -209,19 +245,42 @@ export default function webSearchExtension(pi: ExtensionAPI) {
       });
 
       try {
-        const markdownUrl = `https://markdown.new/${params.url}`;
-        const escapedMarkdownUrl = shellEscape(markdownUrl);
+        const url = params.url;
+        let output = "";
+        let method = "curl-markdown";
 
-        const { stdout, stderr } = await runSurf(
-          pi,
-          `curl -sL --max-time 20 '${escapedMarkdownUrl}'`,
-          signal,
-          20000
-        );
+        // Check if this is a JSON API (skip markdown.new)
+        const isJsonApi = /\.(json)$/i.test(url) ||
+          url.includes("api.github.com") ||
+          url.includes("pypi.org/pypi/") ||
+          url.includes("registry.npmjs.org");
 
-        const output = (stdout || stderr || "").trim();
+        if (isJsonApi) {
+          const escapedUrl = shellEscape(url);
+          const { stdout, stderr } = await runBash(
+            pi,
+            `curl -sL --max-time 20 '${escapedUrl}'`,
+            signal,
+            25000
+          );
+          output = (stdout || stderr || "").trim();
+          method = "curl-json";
+        } else {
+          // Primary: curl + markdown.new
+          const markdownUrl = `https://markdown.new/${url}`;
+          const escapedMarkdownUrl = shellEscape(markdownUrl);
+          const { stdout, stderr } = await runBash(
+            pi,
+            `curl -sL --max-time 20 '${escapedMarkdownUrl}'`,
+            signal,
+            25000
+          );
+          output = (stdout || stderr || "").trim();
+          method = "curl-markdown";
+        }
+
         if (!output) {
-          throw new Error("curl markdown.new returned empty output");
+          throw new Error("curl returned empty output — page may require JavaScript rendering");
         }
 
         const truncated = truncateHead(output, 45000, 1500);
@@ -232,129 +291,7 @@ export default function webSearchExtension(pi: ExtensionAPI) {
               text: `## Content from: ${params.url}\n\n${truncated.text}`,
             },
           ],
-          details: { url: params.url, truncated: truncated.truncated, method: "curl-markdown" },
-        };
-      } catch (error) {
-        // Fallback: surf browser read (JS-heavy sites)
-        try {
-          const escapedUrl = shellEscape(params.url);
-
-          // Navigate and wait for page load
-          await runSurf(pi, `surf go '${escapedUrl}'`, signal, 30000);
-          await runSurf(pi, "surf wait 2", signal, 10000);
-
-          // Read page content
-          const { stdout, stderr } = await runSurf(
-            pi,
-            "surf read --compact",
-            signal,
-            30000
-          );
-
-          const output = (stdout || stderr || "").trim();
-          if (!output) {
-            throw new Error("surf read returned empty output");
-          }
-
-          const truncated = truncateHead(output, 45000, 1500);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `## Content from: ${params.url} (fallback - surf)\n\n${truncated.text}`,
-              },
-            ],
-            details: { url: params.url, fallback: true, truncated: truncated.truncated, method: "surf" },
-          };
-        } catch (_fallbackError) {
-          const errMsg = error instanceof Error ? error.message : String(error);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Fetch failed: ${errMsg}\n\nTip: Ensure 'surf' CLI is installed and has an active browser session.`,
-              },
-            ],
-            details: { error: errMsg, url: params.url },
-          };
-        }
-      }
-    },
-  });
-
-  // ── surf — Direct surf CLI access for interactive browsing ──
-  pi.registerTool({
-    name: "surf",
-    label: "Surf Browser",
-    description:
-      "Run any surf CLI command for browser automation. Use for interactive browsing, " +
-      "clicking elements, filling forms, taking screenshots, or any operation not covered " +
-      "by WebSearch/WebFetch.\n\n" +
-      "Common commands:\n" +
-      "  go <url>            — Navigate to URL\n" +
-      "  read                — Get page accessibility tree + text (use --compact for shorter output)\n" +
-      "  click <ref>         — Click element by ref (e.g., e5) or CSS selector\n" +
-      "  type <text>         — Type text at cursor (add --submit to press Enter)\n" +
-      "  search <text>       — Find text on current page\n" +
-      "  screenshot          — Capture screenshot\n" +
-      "  scroll              — Scroll page (--direction=down/up)\n" +
-      "  wait <seconds>      — Wait N seconds\n" +
-      "  perplexity <query>  — AI-powered web search\n" +
-      "  gemini <query>      — AI-powered web search (Gemini)\n" +
-      "  grok <query>        — Query Grok AI (real-time X/Twitter data)\n" +
-      "  tab.list            — List open tabs\n" +
-      "  tab.new <url>       — Open new tab\n" +
-      "  tab.switch <id>     — Switch tab\n" +
-      "  js <code>           — Execute JavaScript on page\n",
-    parameters: Type.Object({
-      command: Type.String({
-        description:
-          "The surf command and arguments (e.g., 'go https://example.com', 'read --compact', 'click e5')",
-      }),
-    }),
-
-    async execute(_toolCallId, params, signal, onUpdate, _ctx) {
-      if (signal?.aborted) {
-        return { content: [{ type: "text", text: "Cancelled" }] };
-      }
-
-      const cmd = params.command.trim();
-      onUpdate?.({
-        content: [{ type: "text", text: `surf ${cmd}` }],
-        details: {},
-      });
-
-      try {
-        const { stdout, stderr, exitCode } = await runSurf(
-          pi,
-          `surf ${cmd}`,
-          signal,
-          90000
-        );
-
-        const output = (stdout || "").trim();
-        const errors = (stderr || "").trim();
-
-        if (exitCode !== 0 && !output) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `surf ${cmd} failed (exit ${exitCode}):\n${errors || "Unknown error"}`,
-              },
-            ],
-            details: { command: cmd, exitCode, error: errors },
-          };
-        }
-
-        const combined = [output, errors ? `\n--- stderr ---\n${errors}` : ""]
-          .join("")
-          .trim();
-        const truncated = truncateHead(combined || "OK (no output)", 45000, 1500);
-
-        return {
-          content: [{ type: "text", text: truncated.text }],
-          details: { command: cmd, truncated: truncated.truncated },
+          details: { url: params.url, truncated: truncated.truncated, method },
         };
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
@@ -362,10 +299,10 @@ export default function webSearchExtension(pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: `surf ${cmd} failed: ${errMsg}`,
+              text: `Fetch failed: ${errMsg}\n\nTip: If the page requires JavaScript, use bash with camoufox (if CAMOFOX_URL is set) or try Exa/Parallel extract APIs.`,
             },
           ],
-          details: { command: cmd, error: errMsg },
+          details: { error: errMsg, url: params.url },
         };
       }
     },
