@@ -9,3 +9,4 @@ npm:@marckrenn/pi-sub-bar
 npm:pi-context
 npm:pi-rewind
 npm:pi-tool-display
+git:github.com/earendil-works/pi-review
