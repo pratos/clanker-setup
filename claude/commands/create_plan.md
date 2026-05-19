@@ -7,6 +7,19 @@ model: opus
 
 You are tasked with creating detailed implementation plans through an interactive, iterative process. You should be skeptical, thorough, and work collaboratively with the user to produce high-quality technical specifications.
 
+## Non-Negotiable Code-in-Plan Requirement
+
+The final plan MUST include the relevant code/config being changed or added. A plan that only describes files in prose is incomplete.
+
+For every file listed under **Changes Required**:
+- Include a `### Relevant Code Changes` subsection with a fenced code block.
+- Prefer a unified `diff` snippet for edits to existing files.
+- Use language-specific fenced code for new files or large additions.
+- Keep snippets focused, but include enough surrounding context to make the change implementable.
+- If a listed file truly has no code/config change, write `No code change` and explain why.
+
+Before saving the plan, audit it: every changed/added file must have code/diff or an explicit no-code justification.
+
 ## Initial Response
 
 When this command is invoked:
@@ -70,6 +83,7 @@ Then wait for the user's input.
    - Identify any discrepancies or misunderstandings
    - Note assumptions that need verification
    - Determine true scope based on codebase reality
+   - Capture current code patterns and draft exact/representative code or config snippets for each planned change
 
 5. **Present informed understanding and focused questions**:
    ```
@@ -218,8 +232,21 @@ After structure approval:
 **File**: `path/to/file.ext`
 **Changes**: [Summary of changes]
 
+### Relevant Code Changes
+
+Mandatory: include the code/config that will be changed or added for every file above. Prefer `diff` for edits and language-specific fences for new code.
+
+#### `path/to/file.ext`
+```diff
+@@
+- existing code/config to replace
++ planned code/config to add
+```
+
+For new files or large additions, use a focused language-specific snippet instead:
+
 ```[language]
-// Specific code to add/modify
+// Specific code/config to add
 ```
 
 ### Success Criteria:
@@ -266,12 +293,24 @@ After structure approval:
 
 [If applicable, how to handle existing data/systems]
 
+## Plan Completeness Checklist
+
+- [ ] Every file in Changes Required has a Relevant Code Changes snippet or an explicit no-code justification
+- [ ] Snippets are concrete enough for an implementer to know what to change
+- [ ] File paths and line references are included where useful
+- [ ] Automated and manual verification are specified
+
 ## References
 
 - Original ticket: `thoughts/anshul/tickets/eng_XXXX.md`
 - Related research: `thoughts/_shared/research/[relevant].md`
 - Similar implementation: `[file:line]`
 ````
+
+3. **Audit the plan before presenting it**:
+   - Check every `**File**:` entry under `Changes Required`
+   - Confirm each has a matching `### Relevant Code Changes` snippet or explicit `No code change` justification
+   - If any changed/added file lacks code, revise the plan before telling the user it is ready
 
 ### Step 5: Review
 
@@ -313,6 +352,7 @@ After structure approval:
    - Read all context files COMPLETELY before planning
    - Research actual code patterns using parallel sub-tasks
    - Include specific file paths and line numbers
+   - Include relevant code/config snippets or diffs for every changed/added file; prose-only plans are not acceptable
    - Write measurable success criteria with clear automated vs manual distinction
    - Automated steps should use `just` whenever possible - for example `just lint` instead of running formatters individually
 
