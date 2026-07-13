@@ -1,0 +1,14 @@
+# Pi skills discovered under ~/.pi/agent/skills
+adb-ui-tree
+agentation
+github-issue-reader
+github-issue-searcher
+json-render-ink
+obsidian-link-archiver
+python-uv-setup
+sops-secret-editor
+stagehand-browser
+traces
+ts-dotenv-override
+uv-python-execution
+web-search-researcher
