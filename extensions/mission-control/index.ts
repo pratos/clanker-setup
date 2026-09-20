@@ -20,6 +20,8 @@
  *
  * Shortcuts:
  *   Ctrl+Alt+M      — toggle Mission Control visibility
+ *   Ctrl+Alt+Up     — scroll activity panel up
+ *   Ctrl+Alt+Down   — scroll activity panel down
  *   Ctrl+Shift+A    — toggle activity panel
  *   Ctrl+Shift+M    — open Mission Control dashboard (tabbed panel)
  *   Ctrl+Shift+J    — MCP servers & keyboard shortcuts
@@ -119,14 +121,14 @@ export default function missionControl(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerShortcut("ctrl+shift+up", {
+	pi.registerShortcut("ctrl+alt+up", {
 		description: "Scroll activity panel up",
 		handler: async (ctx) => {
 			scrollActivityUp(ctx);
 		},
 	});
 
-	pi.registerShortcut("ctrl+shift+down", {
+	pi.registerShortcut("ctrl+alt+down", {
 		description: "Scroll activity panel down",
 		handler: async (ctx) => {
 			scrollActivityDown(ctx);
