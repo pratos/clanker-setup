@@ -13,7 +13,8 @@
     "npm:pi-mcp-adapter",
     "npm:pi-context",
     "npm:pi-rewind",
-    "npm:pi-tool-display"
+    "npm:pi-tool-display",
+    "npm:pi-codex-image-gen"
   ],
   "enabledModels": [
     "anthropic/claude-haiku-4-5",

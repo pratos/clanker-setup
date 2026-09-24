@@ -114,7 +114,12 @@ sync_configs() {
 	[ -f "$ROOT/pi/mcp.json" ] && cp "$ROOT/pi/mcp.json" "$PI_DIR/mcp.json" && echo "→ Synced mcp.json"
 
 	# --- AGENTS.md ---
-	[ -f "$ROOT/pi/AGENTS.md" ] && cp "$ROOT/pi/AGENTS.md" "$PI_DIR/AGENTS.md" && echo "→ Synced AGENTS.md"
+	if [ -f "$ROOT/pi/AGENTS.md" ]; then
+		chmod u+w "$PI_DIR/AGENTS.md" 2>/dev/null || true
+		cp "$ROOT/pi/AGENTS.md" "$PI_DIR/AGENTS.md"
+		chmod u+w "$PI_DIR/AGENTS.md" 2>/dev/null || true
+		echo "→ Synced AGENTS.md"
+	fi
 
 	# --- Pi prompt templates (separate from Claude commands) ---
 	if [ -d "$ROOT/pi/prompts" ]; then
