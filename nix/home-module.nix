@@ -40,7 +40,7 @@ flakeSrc: {
     for ext_dir in "$PI_DIR/extensions"/*/; do
       if [ -f "''${ext_dir}package.json" ]; then
         echo "pi sync: installing deps for extension: $(basename "$ext_dir")"
-        (cd "$ext_dir" && npm install --omit=dev 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
+        (cd "$ext_dir" && npm install --omit=dev 2>&1 && npm audit fix --omit=dev 2>&1) || echo "  warning: npm install/audit failed for $(basename "$ext_dir")"
       fi
     done
 

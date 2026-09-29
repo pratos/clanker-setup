@@ -54,6 +54,8 @@ install_effect_ls() {
 		echo "  warning: npm install $EFFECT_PKG failed (network?)" >&2
 		return 0
 	fi
+	npm audit fix --prefix "$LSP_PREFIX" --omit=dev \
+		|| echo "  warning: npm audit fix failed in $LSP_PREFIX" >&2
 
 	local plugin_dir="$LSP_PREFIX/node_modules/@effect/language-service"
 	if [ ! -d "$plugin_dir" ]; then

@@ -105,7 +105,7 @@ sync_configs() {
 			if [ -f "${ext_dir}package.json" ]; then
 				echo "→ Installing deps for extension: $(basename "$ext_dir")"
 				chmod -R u+rwX "$ext_dir" 2>/dev/null || true
-				(cd "$ext_dir" && npm install --omit=dev 2>&1) || echo "  warning: npm install failed for $(basename "$ext_dir")"
+				(cd "$ext_dir" && npm install --omit=dev 2>&1 && npm audit fix --omit=dev 2>&1) || echo "  warning: npm install/audit failed for $(basename "$ext_dir")"
 			fi
 		done
 	fi
