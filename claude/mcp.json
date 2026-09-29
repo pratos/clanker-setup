@@ -11,6 +11,10 @@
     "agentation": {
       "command": "npx",
       "args": ["-y", "agentation-mcp@latest", "server"]
+    },
+    "mobbin": {
+      "type": "http",
+      "url": "https://api.mobbin.com/mcp"
     }
   }
 }

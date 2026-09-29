@@ -3,18 +3,26 @@
     "deepwiki": {
       "type": "http",
       "url": "https://mcp.deepwiki.com/mcp",
+      "oauth": false,
       "lifecycle": "lazy",
       "idleTimeout": 10
     },
     "tidewave": {
       "type": "http",
       "url": "http://localhost:4000/tidewave/mcp",
+      "oauth": false,
       "lifecycle": "lazy",
       "idleTimeout": 30
     },
     "agentation": {
       "command": "npx",
       "args": ["-y", "agentation-mcp@latest", "server"],
+      "lifecycle": "lazy",
+      "idleTimeout": 10
+    },
+    "mobbin": {
+      "type": "http",
+      "url": "https://api.mobbin.com/mcp",
       "lifecycle": "lazy",
       "idleTimeout": 10
     }

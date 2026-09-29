@@ -74,6 +74,12 @@ flakeSrc: {
     done
 
     echo "pi sync: done"
+
+    # Hermes: same skills under ~/.hermes/skills/pi/ plus Effect language-service.
+    if [ -f "${flakeSrc}/scripts/hermes-setup.sh" ] && [ -d "$HOME/.hermes" ]; then
+      echo "pi sync: running hermes-setup"
+      SKILLS_SRC="$PI_DIR/skills" ${pkgs.bash}/bin/bash "${flakeSrc}/scripts/hermes-setup.sh" || echo "  warning: hermes-setup failed"
+    fi
   '';
 
   piBootstrap = pkgs.writeShellScript "pi-bootstrap" ''

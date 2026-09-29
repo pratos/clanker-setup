@@ -254,4 +254,9 @@ ensure_pi
 sync_configs
 install_extensions
 
+# Sync the same skills into Hermes + wire Effect language-service.
+if [ -f "$ROOT/scripts/hermes-setup.sh" ]; then
+	bash "$ROOT/scripts/hermes-setup.sh" || echo "warning: hermes-setup.sh failed" >&2
+fi
+
 echo "✓ Pi setup complete"
