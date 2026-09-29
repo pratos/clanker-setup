@@ -174,6 +174,12 @@ PY
 	# --- Claude Code configs ---
 	[ -f "$ROOT/claude/mcp.json" ] && cp "$ROOT/claude/mcp.json" "$CLAUDE_DIR/mcp.json" && echo "→ Synced claude/mcp.json"
 	[ -f "$ROOT/claude/settings.json" ] && cp "$ROOT/claude/settings.json" "$CLAUDE_DIR/settings.json" && echo "→ Synced claude/settings.json"
+	if [ -f "$ROOT/claude/statusline-command.sh" ]; then
+		chmod u+w "$CLAUDE_DIR/statusline-command.sh" 2>/dev/null || true
+		cp "$ROOT/claude/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
+		chmod u+rx "$CLAUDE_DIR/statusline-command.sh" 2>/dev/null || true
+		echo "→ Synced claude/statusline-command.sh"
+	fi
 
 	for subdir in commands agents rules; do
 		if [ -d "$ROOT/claude/$subdir" ]; then

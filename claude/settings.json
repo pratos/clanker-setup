@@ -23,6 +23,10 @@
     ],
     "deny": ["Bash(rm:-rf)"]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /Users/pratos/.claude/statusline-command.sh"
+  },
   "includeCoAuthoredBy": false,
   "skipDangerousModePermissionPrompt": true,
   "enabledMcpjsonServers": ["tidewave"],

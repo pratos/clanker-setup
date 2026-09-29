@@ -64,6 +64,12 @@ flakeSrc: {
       echo "pi sync: copied claude/settings.json"
     fi
 
+    if [ -f "${flakeSrc}/claude/statusline-command.sh" ]; then
+      cp -f "${flakeSrc}/claude/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
+      chmod u+rx "$CLAUDE_DIR/statusline-command.sh" 2>/dev/null || true
+      echo "pi sync: copied claude/statusline-command.sh"
+    fi
+
     # Sync .claude/ subdirectories (commands, agents, rules) for dotclaude extension
     for subdir in commands agents rules; do
       if [ -d "${flakeSrc}/claude/$subdir" ]; then
