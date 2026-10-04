@@ -1,4 +1,9 @@
 {
+  "cleanupPeriodDays": 30,
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  },
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Bash(./hack/understand_git_structure.sh)",
@@ -21,18 +26,22 @@
       "mcp__browsermcp",
       "mcp__shadcn"
     ],
-    "deny": ["Bash(rm:-rf)"]
+    "deny": [
+      "Bash(rm:-rf)"
+    ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "tidewave"
+  ],
   "statusLine": {
     "type": "command",
     "command": "bash /Users/pratos/.claude/statusline-command.sh"
   },
-  "includeCoAuthoredBy": false,
   "skipDangerousModePermissionPrompt": true,
-  "enabledMcpjsonServers": ["tidewave"],
-  "enableAllProjectMcpServers": true,
-  "cleanupPeriodDays": 30,
-  "env": {
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    }
   }
 }
