@@ -429,6 +429,7 @@ class McpShortcutsPanel {
 
 export function setupMcpPanel(pi: ExtensionAPI) {
 	const SHORTCUTS: ShortcutEntry[] = [
+		{ key: "?", description: "Show help (this panel)" },
 		{ key: "Alt+Shift+D", description: "Open Mission Control dashboard" },
 		{ key: "Alt+Shift+J", description: "MCP servers & shortcuts (this panel)" },
 		{ key: "Alt+Shift+M", description: "Toggle Mission Control" },

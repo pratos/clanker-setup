@@ -18,6 +18,7 @@
  *   /shortcuts    — show MCP servers & keyboard shortcuts
  *
  * Shortcuts:
+ *   ?               — show help (shortcuts & MCP servers)
  *   Alt+Shift+M     — toggle Mission Control visibility
  *   Alt+Shift+D     — open Mission Control dashboard (tabbed panel)
  *   Alt+Shift+J     — MCP servers & keyboard shortcuts
@@ -43,7 +44,7 @@ export default function missionControl(pi: ExtensionAPI) {
 	const { getSessionToolLog, getLoadedSkills } = setupActivityPanel(pi, state);
 	setupContextBar(pi, state);
 	const { openSessionsPanel } = setupSessionTracker(pi, state);
-	setupMcpPanel(pi);
+	const { openMcpPanel } = setupMcpPanel(pi);
 	setupTabTitle(pi, state);
 	const { openPanel: openDashboard } = setupMissionControlPanel(pi, state, getSessionToolLog, getLoadedSkills);
 
@@ -108,6 +109,21 @@ export default function missionControl(pi: ExtensionAPI) {
 		description: "Open Mission Control dashboard",
 		handler: async (ctx) => {
 			await openDashboard(ctx);
+		},
+	});
+
+	pi.registerShortcut("?", {
+		description: "Show help (shortcuts & MCP servers)",
+		handler: async (ctx) => {
+			await openMcpPanel(ctx as any);
+		},
+	});
+
+	// /help — alias for the shortcuts/MCP help panel
+	pi.registerCommand("help", {
+		description: "Show help (shortcuts & MCP servers)",
+		handler: async (_args, ctx) => {
+			await openMcpPanel(ctx);
 		},
 	});
 
