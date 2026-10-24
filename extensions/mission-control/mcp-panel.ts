@@ -429,10 +429,9 @@ class McpShortcutsPanel {
 
 export function setupMcpPanel(pi: ExtensionAPI) {
 	const SHORTCUTS: ShortcutEntry[] = [
-		{ key: "Ctrl+Shift+A", description: "Toggle tool activity panel" },
-		{ key: "Ctrl+Shift+M", description: "Open Mission Control dashboard" },
-		{ key: "Ctrl+Shift+J", description: "MCP servers & shortcuts (this panel)" },
-		{ key: "Ctrl+Alt+M", description: "Toggle Mission Control" },
+		{ key: "Alt+Shift+D", description: "Open Mission Control dashboard" },
+		{ key: "Alt+Shift+J", description: "MCP servers & shortcuts (this panel)" },
+		{ key: "Alt+Shift+M", description: "Toggle Mission Control" },
 		{ key: "Ctrl+L", description: "Select model" },
 		{ key: "Ctrl+P", description: "Cycle model forward" },
 		{ key: "Shift+Ctrl+P", description: "Cycle model backward" },
@@ -471,7 +470,7 @@ export function setupMcpPanel(pi: ExtensionAPI) {
 	}
 
 	// ── Shortcut ──
-	pi.registerShortcut("ctrl+shift+j", {
+	pi.registerShortcut("alt+shift+j", {
 		description: "Show MCP servers & keyboard shortcuts",
 		handler: async (ctx) => {
 			await openMcpPanel(ctx as any);

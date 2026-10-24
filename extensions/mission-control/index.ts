@@ -3,7 +3,6 @@
  *
  * A unified dashboard experience with:
  *   - Header widget (workspace, elapsed time, session count) — always visible above editor
- *   - Activity panel (tool calls, skills) — below header, above editor
  *   - Rich footer (model, thinking level, branch, ctx%, tokens, cost, files)
  *   - Context usage progress bar (below editor, segmented style)
  *   - Session tracker (other running pi instances)
@@ -19,12 +18,9 @@
  *   /shortcuts    — show MCP servers & keyboard shortcuts
  *
  * Shortcuts:
- *   Ctrl+Alt+M      — toggle Mission Control visibility
- *   Ctrl+Alt+Up     — scroll activity panel up
- *   Ctrl+Alt+Down   — scroll activity panel down
- *   Ctrl+Shift+A    — toggle activity panel
- *   Ctrl+Shift+M    — open Mission Control dashboard (tabbed panel)
- *   Ctrl+Shift+J    — MCP servers & keyboard shortcuts
+ *   Alt+Shift+M     — toggle Mission Control visibility
+ *   Alt+Shift+D     — open Mission Control dashboard (tabbed panel)
+ *   Alt+Shift+J     — MCP servers & keyboard shortcuts
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -44,7 +40,7 @@ export default function missionControl(pi: ExtensionAPI) {
 	// Wire up all modules
 	const { applyHeader } = setupHeader(pi, state);
 	const { applyFooter } = setupFooter(pi, state);
-	const { applyWidget: applyActivity, togglePanel: toggleActivity, scrollUp: scrollActivityUp, scrollDown: scrollActivityDown, getSessionToolLog, getLoadedSkills } = setupActivityPanel(pi, state);
+	const { getSessionToolLog, getLoadedSkills } = setupActivityPanel(pi, state);
 	setupContextBar(pi, state);
 	const { openSessionsPanel } = setupSessionTracker(pi, state);
 	setupMcpPanel(pi);
@@ -61,7 +57,6 @@ export default function missionControl(pi: ExtensionAPI) {
 			if (arg === "off") {
 				state.enabled = false;
 				ctx.ui.setWidget("mctl-header", undefined);
-				ctx.ui.setWidget("mctl-activity", undefined);
 				ctx.ui.setFooter(undefined);
 				ctx.ui.notify("Mission Control disabled. Use /mctl on to re-enable.", "info");
 				return;
@@ -71,7 +66,6 @@ export default function missionControl(pi: ExtensionAPI) {
 				state.enabled = true;
 				applyHeader(ctx);
 				applyFooter(ctx);
-				if (state.activityPanelVisible) applyActivity(ctx);
 				ctx.ui.notify("Mission Control re-enabled.", "info");
 				return;
 			}
@@ -81,11 +75,9 @@ export default function missionControl(pi: ExtensionAPI) {
 				if (state.enabled) {
 					applyHeader(ctx);
 					applyFooter(ctx);
-					if (state.activityPanelVisible) applyActivity(ctx);
 					ctx.ui.notify("Mission Control enabled.", "info");
 				} else {
 					ctx.ui.setWidget("mctl-header", undefined);
-					ctx.ui.setWidget("mctl-activity", undefined);
 					ctx.ui.setFooter(undefined);
 					ctx.ui.notify("Mission Control disabled.", "info");
 				}
@@ -98,44 +90,21 @@ export default function missionControl(pi: ExtensionAPI) {
 
 	// ── Keyboard shortcuts ──
 
-	pi.registerShortcut("ctrl+alt+m", {
+	pi.registerShortcut("alt+shift+m", {
 		description: "Toggle Mission Control visibility",
 		handler: async (ctx) => {
 			state.enabled = !state.enabled;
 			if (state.enabled) {
 				applyHeader(ctx);
 				applyFooter(ctx);
-				if (state.activityPanelVisible) applyActivity(ctx);
 			} else {
 				ctx.ui.setWidget("mctl-header", undefined);
-				ctx.ui.setWidget("mctl-activity", undefined);
 				ctx.ui.setFooter(undefined);
 			}
 		},
 	});
 
-	pi.registerShortcut("ctrl+shift+a", {
-		description: "Toggle activity panel",
-		handler: async (ctx) => {
-			toggleActivity(ctx);
-		},
-	});
-
-	pi.registerShortcut("ctrl+alt+up", {
-		description: "Scroll activity panel up",
-		handler: async (ctx) => {
-			scrollActivityUp(ctx);
-		},
-	});
-
-	pi.registerShortcut("ctrl+alt+down", {
-		description: "Scroll activity panel down",
-		handler: async (ctx) => {
-			scrollActivityDown(ctx);
-		},
-	});
-
-	pi.registerShortcut("ctrl+shift+m", {
+	pi.registerShortcut("alt+shift+d", {
 		description: "Open Mission Control dashboard",
 		handler: async (ctx) => {
 			await openDashboard(ctx);

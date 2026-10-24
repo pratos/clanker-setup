@@ -1,18 +1,12 @@
 /**
- * Mission Control — Tool Activity Panel
+ * Mission Control — Tool Tracker & History
  *
- * Persistent widget below the mission control header showing tool calls,
- * skill loads, and execution history. Not a floating window.
+ * Tracks tool executions and skill loads for the dashboard and /history
+ * command. No persistent widget is rendered.
  *
- * Features:
- *   - Real-time tool execution tracking with status icons
+ *   - Tool execution tracking + result token estimation
  *   - Skill loading detection (SKILL.md reads)
- *   - Compact Spindle-style formatting
- *   - Auto-shows on first tool call, auto-hides 3s after agent ends
  *   - /history command for full session tool log
- *
- * Shortcut:
- *   Ctrl+Shift+A — toggle panel visibility
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -147,174 +141,12 @@ export function fmtTool(name: string, args: Record<string, any>, theme: any): st
 	}
 }
 
-const MAX_VISIBLE = 8;
-
 // ── Setup ──────────────────────────────────────────────────────────
 
 export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState) {
 	const toolHistory: ToolEntry[] = [];
 	const loadedSkills = new Set<string>();
 	const sessionToolLog: ToolEntry[] = [];
-	let lastCtx: ExtensionContext | undefined;
-	let autoHideTimer: ReturnType<typeof setTimeout> | undefined;
-	let firstToolOfTurn = true;
-	let userToggled = false; // when true, skip auto-show and auto-hide
-	let scrollOffset = 0; // 0 = pinned to bottom (latest), >0 = scrolled up
-	let userScrolled = false; // when true, don't auto-scroll to bottom on new tools
-
-	// ── Render widget ──
-
-	function applyWidget(ctx: ExtensionContext) {
-		lastCtx = ctx;
-		if (!ctx.hasUI || !state.enabled) return;
-
-		if (!state.activityPanelVisible) {
-			ctx.ui.setWidget("mctl-activity", undefined);
-			return;
-		}
-
-		// Snapshot time so render() returns stable output between tool events.
-		// Using Date.now() inside render() causes output to change every TUI frame,
-		// which creates visual duplication glitches during interactive tools (e.g. clarify).
-		const snapshotNow = Date.now();
-
-		ctx.ui.setWidget(
-			"mctl-activity",
-			(_tui, theme) => ({
-				render(width: number): string[] {
-					const lines: string[] = [];
-					const div = theme.fg("dim", "─".repeat(width));
-
-					// ── Title bar ──
-					const running = toolHistory.filter((t) => t.status === "running").length;
-					const done = toolHistory.filter((t) => t.status === "done").length;
-					const errors = toolHistory.filter((t) => t.status === "error").length;
-					const totalMs = toolHistory.reduce(
-						(s, t) => s + ((t.endTime ?? snapshotNow) - t.startTime),
-						0,
-					);
-
-					const title = theme.fg("accent", " Tool Activity ");
-					const counters = [
-						running > 0 ? theme.fg("accent", `○ ${running}`) : "",
-						done > 0 ? theme.fg("success", `✓ ${done}`) : "",
-						errors > 0 ? theme.fg("error", `✗ ${errors}`) : "",
-					]
-						.filter(Boolean)
-						.join(" ");
-					const totalCtxTokens = toolHistory.reduce(
-						(s, t) => s + (t.resultTokens ?? 0),
-						0,
-					);
-					const stats = theme.fg("dim", `${toolHistory.length} · ${(totalMs / 1000).toFixed(1)}s`);
-					const ctxAdded = totalCtxTokens > 0
-						? "  " + theme.fg("muted", `+${formatTokens(totalCtxTokens)} ctx`)
-						: "";
-					const titleW = visibleWidth(title);
-					const rightPart = counters + (counters ? "  " : "") + stats + ctxAdded;
-					const rightW = visibleWidth(rightPart);
-					const dashLen = Math.max(0, width - titleW - rightW - 2);
-					lines.push(
-						truncateToWidth(
-							theme.fg("dim", "─".repeat(2)) +
-								title +
-								theme.fg("dim", "─".repeat(dashLen)) +
-								" " +
-								rightPart +
-								" ",
-							width,
-						),
-					);
-
-					// ── Skills ──
-					if (loadedSkills.size > 0) {
-						const skillList = [...loadedSkills].sort().join(theme.fg("dim", ", "));
-						lines.push(
-							truncateToWidth(
-								"  " +
-									theme.fg("accent", "📚") +
-									" " +
-									theme.fg("muted", "Skills:") +
-									" " +
-									skillList,
-								width,
-							),
-						);
-					}
-
-					// ── Tool entries (scrollable window) ──
-					const total = toolHistory.length;
-					// scrollOffset 0 = bottom (show latest), clamped to valid range
-					const maxOffset = Math.max(0, total - MAX_VISIBLE);
-					const clampedOffset = Math.min(Math.max(0, scrollOffset), maxOffset);
-					const startIdx = Math.max(0, total - MAX_VISIBLE - clampedOffset);
-					const endIdx = Math.min(total, startIdx + MAX_VISIBLE);
-					const visible = toolHistory.slice(startIdx, endIdx);
-					const hiddenAbove = startIdx;
-					const hiddenBelow = total - endIdx;
-
-					if (hiddenAbove > 0) {
-						lines.push(
-							truncateToWidth(
-								"  " + theme.fg("dim", `↑ ${hiddenAbove} more`),
-								width,
-							),
-						);
-					}
-
-					for (const t of visible) {
-						const icon =
-							t.status === "running"
-								? theme.fg("accent", "○")
-								: t.status === "error"
-									? theme.fg("error", "✗")
-									: theme.fg("success", "✓");
-						const elapsed = t.endTime
-							? theme.fg("dim", `${((t.endTime - t.startTime) / 1000).toFixed(1)}s`)
-							: theme.fg("accent", "…");
-						// Context tokens added by this tool result
-						const ctxPart = t.resultTokens != null && t.resultTokens > 0
-							? theme.fg("muted", ` +${formatTokens(t.resultTokens)}`)
-							: "";
-						const toolStr = fmtTool(t.name, t.args, theme);
-						const left = `  ${icon} ${toolStr}`;
-						const right = ctxPart + "  " + elapsed;
-						const leftW = visibleWidth(left);
-						const rightW = visibleWidth(right);
-						const gap = Math.max(1, width - leftW - rightW);
-						lines.push(truncateToWidth(`${left}${" ".repeat(gap)}${right}`, width));
-
-						if (t.status === "error" && t.errorMsg) {
-							const errLine = t.errorMsg.split("\n")[0] || "";
-							lines.push(
-								truncateToWidth(`    ${theme.fg("error", "↳ " + errLine)}`, width),
-							);
-						}
-					}
-
-					if (visible.length === 0) {
-						lines.push(truncateToWidth("  " + theme.fg("dim", "No tool calls yet"), width));
-					}
-
-					if (hiddenBelow > 0) {
-						lines.push(
-							truncateToWidth(
-								"  " + theme.fg("dim", `↓ ${hiddenBelow} more`),
-								width,
-							),
-						);
-					}
-
-					// ── Bottom divider ──
-					lines.push(div);
-
-					return lines;
-				},
-				invalidate() {},
-			}),
-			{ placement: "aboveEditor" },
-		);
-	}
 
 	// ── /history command ──
 
@@ -430,7 +262,7 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		}
 	});
 
-	// ── Tool execution events → status bar + widget ──
+	// ── Tool execution events → status bar ──
 
 	pi.on("tool_execution_start", async (event, ctx) => {
 		const entry: ToolEntry = {
@@ -443,23 +275,6 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		toolHistory.push(entry);
 		if (toolHistory.length > 50) toolHistory.shift();
 
-		// Auto-scroll to bottom on new tool (unless user scrolled up)
-		if (!userScrolled) {
-			scrollOffset = 0;
-		}
-
-		// Clear auto-hide timer if tools start again
-		if (autoHideTimer) {
-			clearTimeout(autoHideTimer);
-			autoHideTimer = undefined;
-		}
-
-		// Auto-show on first tool call of a turn (unless user manually toggled)
-		if (firstToolOfTurn && ctx.hasUI && !userToggled) {
-			firstToolOfTurn = false;
-			state.activityPanelVisible = true;
-		}
-
 		// Status bar
 		if (ctx.hasUI) {
 			const theme = ctx.ui.theme;
@@ -468,8 +283,6 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 				theme.fg("accent", "○ ") + fmtTool(event.toolName, event.args ?? {}, theme),
 			);
 		}
-
-		applyWidget(ctx);
 	});
 
 	pi.on("tool_execution_end", async (event, ctx) => {
@@ -498,8 +311,6 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 			const tokens = entry?.resultTokens ? ` +${formatTokens(entry.resultTokens)}` : "";
 			ctx.ui.setStatus("tool-activity", icon + theme.fg("dim", event.toolName + elapsed + tokens));
 		}
-
-		applyWidget(ctx);
 	});
 
 	// Also capture via tool_result for more accurate content measurement
@@ -523,14 +334,6 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 				loadedSkills.add((entry as any).data.skill);
 			}
 		}
-		applyWidget(ctx);
-	});
-
-	pi.on("agent_start", async (_event, _ctx) => {
-		firstToolOfTurn = true;
-		userToggled = false; // reset manual override each turn
-		scrollOffset = 0;
-		userScrolled = false;
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {
@@ -550,46 +353,11 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 			);
 		}
 
-		// Auto-hide widget 3s after agent completes (unless user manually toggled)
-		if (!userToggled) {
-			autoHideTimer = setTimeout(() => {
-				state.activityPanelVisible = false;
-				if (lastCtx) applyWidget(lastCtx);
-				autoHideTimer = undefined;
-			}, 3000);
-		}
-
 		// Persist to session log
 		sessionToolLog.push(...toolHistory.map((t) => ({ ...t })));
 		if (sessionToolLog.length > 200) sessionToolLog.splice(0, sessionToolLog.length - 200);
 		toolHistory.length = 0;
 	});
-
-	function togglePanel(ctx: ExtensionContext) {
-		userToggled = true;
-		state.activityPanelVisible = !state.activityPanelVisible;
-		// Cancel any pending auto-hide
-		if (autoHideTimer) {
-			clearTimeout(autoHideTimer);
-			autoHideTimer = undefined;
-		}
-		applyWidget(ctx);
-	}
-
-	function scrollUp(ctx: ExtensionContext) {
-		if (!state.activityPanelVisible) return;
-		const maxOffset = Math.max(0, toolHistory.length - MAX_VISIBLE);
-		scrollOffset = Math.min(scrollOffset + 1, maxOffset);
-		userScrolled = scrollOffset > 0;
-		applyWidget(ctx);
-	}
-
-	function scrollDown(ctx: ExtensionContext) {
-		if (!state.activityPanelVisible) return;
-		scrollOffset = Math.max(0, scrollOffset - 1);
-		userScrolled = scrollOffset > 0;
-		applyWidget(ctx);
-	}
 
 	function getSessionToolLog(): ToolEntry[] {
 		return [...sessionToolLog, ...toolHistory.map(t => ({ ...t }))];
@@ -599,5 +367,5 @@ export function setupActivityPanel(pi: ExtensionAPI, state: MissionControlState)
 		return new Set(loadedSkills);
 	}
 
-	return { applyWidget, togglePanel, scrollUp, scrollDown, getSessionToolLog, getLoadedSkills };
+	return { getSessionToolLog, getLoadedSkills };
 }

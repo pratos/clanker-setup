@@ -3,11 +3,6 @@
  * All mutable state lives here; modules read/write through this object.
  */
 
-export interface ToolActivity {
-	name: string;
-	startedAt: number;
-}
-
 export type SessionStatus = "idle" | "working" | "unknown";
 
 export interface PiSession {
@@ -30,7 +25,6 @@ export interface MissionControlState {
 	turnCount: number;
 
 	// Tool tracking
-	activeTools: Map<string, ToolActivity>;
 	toolCallCount: number;
 
 	// Token tracking
@@ -57,9 +51,6 @@ export interface MissionControlState {
 
 	// Visibility toggle
 	enabled: boolean;
-
-	// Activity panel
-	activityPanelVisible: boolean;
 }
 
 export function createState(): MissionControlState {
@@ -67,7 +58,6 @@ export function createState(): MissionControlState {
 		sessionStartTime: Date.now(),
 		isRunning: false,
 		turnCount: 0,
-		activeTools: new Map(),
 		toolCallCount: 0,
 		totalInputTokens: 0,
 		totalOutputTokens: 0,
@@ -82,6 +72,5 @@ export function createState(): MissionControlState {
 		gitDirty: false,
 		otherSessions: [],
 		enabled: true,
-		activityPanelVisible: false,
 	};
 }

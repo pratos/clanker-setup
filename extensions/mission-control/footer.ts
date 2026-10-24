@@ -11,7 +11,7 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { MissionControlState } from "./state.js";
-import { formatCost, formatTokens, getGitStats, getSpinnerFrame, renderProgressBar } from "./utils.js";
+import { formatCost, formatTokens, getGitStats, renderProgressBar } from "./utils.js";
 
 const THINKING_LABELS: Record<string, string> = {
 	off: "",
@@ -23,24 +23,8 @@ const THINKING_LABELS: Record<string, string> = {
 };
 
 export function setupFooter(pi: ExtensionAPI, state: MissionControlState) {
-	let spinnerInterval: NodeJS.Timeout | undefined;
 	let lastCtx: ExtensionContext | undefined;
 	let tuiRef: { requestRender: () => void } | undefined;
-
-	function startSpinner() {
-		if (spinnerInterval) return;
-		spinnerInterval = setInterval(() => {
-			tuiRef?.requestRender();
-		}, 200);
-		spinnerInterval.unref?.();
-	}
-
-	function stopSpinner() {
-		if (spinnerInterval) {
-			clearInterval(spinnerInterval);
-			spinnerInterval = undefined;
-		}
-	}
 
 	function refreshGitStats(ctx: ExtensionContext) {
 		const stats = getGitStats(ctx.cwd);
@@ -86,9 +70,7 @@ export function setupFooter(pi: ExtensionAPI, state: MissionControlState) {
 					const segments: string[] = [];
 
 					// Status indicator
-					if (state.activeTools.size > 0) {
-						segments.push(theme.fg("warning", getSpinnerFrame()));
-					} else if (state.isRunning) {
+					if (state.isRunning) {
 						segments.push(theme.fg("accent", "●"));
 					} else {
 						segments.push(theme.fg("success", "●"));
@@ -130,15 +112,6 @@ export function setupFooter(pi: ExtensionAPI, state: MissionControlState) {
 						state.contextPercent = usage.percent;
 						state.contextTokens = usage.tokens;
 						state.contextWindow = usage.contextWindow;
-					}
-
-					// Active tool name(s)
-					if (state.activeTools.size > 0) {
-						const names = [...new Set(Array.from(state.activeTools.values()).map((t) => t.name))];
-						segments.push(theme.fg("warning", names[0]));
-						if (names.length > 1) {
-							segments.push(theme.fg("dim", `+${names.length - 1}`));
-						}
 					}
 
 					// Right segments
@@ -208,16 +181,11 @@ export function setupFooter(pi: ExtensionAPI, state: MissionControlState) {
 		if (state.enabled) applyFooter(ctx);
 	});
 
-	pi.on("tool_execution_start", async (event) => {
-		state.activeTools.set(event.toolCallId, { name: event.toolName, startedAt: Date.now() });
+	pi.on("tool_execution_start", async () => {
 		state.toolCallCount++;
-		startSpinner();
 	});
 
 	pi.on("tool_execution_end", async (event, ctx) => {
-		state.activeTools.delete(event.toolCallId);
-		if (state.activeTools.size === 0) stopSpinner();
-
 		// Refresh git stats after file-modifying tools complete
 		if (event.toolName === "write" || event.toolName === "edit" || event.toolName === "bash") {
 			refreshGitStats(ctx);
@@ -245,8 +213,6 @@ export function setupFooter(pi: ExtensionAPI, state: MissionControlState) {
 
 	pi.on("agent_end", async (_event, ctx) => {
 		state.isRunning = false;
-		state.activeTools.clear();
-		stopSpinner();
 		refreshGitStats(ctx);
 		if (state.enabled) applyFooter(ctx);
 	});
