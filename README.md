@@ -13,6 +13,7 @@ Skills, extensions, and settings for [Pi coding agent](https://github.com/marioz
 | `pi/extensions.txt` | —                           | Packages to `pi install`                                    |
 | `pi/AGENTS.md`      | `~/.pi/agent/AGENTS.md`     | Global agent instructions                                   |
 | `claude/`           | `~/.claude/`                | Claude Code config (settings, MCP, commands, agents, rules) |
+| `claude/skills/`    | `~/.claude/skills/`         | Claude-only skills (additive sync)                          |
 
 ## Setup
 

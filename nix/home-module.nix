@@ -79,6 +79,15 @@ flakeSrc: {
       fi
     done
 
+    # Claude-only skills live in claude/skills/. No --delete: ~/.claude/skills
+    # also holds Pi skills mirrored in by the laptop's pi.nix plus Claude-internal
+    # state, so we only add/update and never prune.
+    if [ -d "${flakeSrc}/claude/skills" ]; then
+      mkdir -p "$CLAUDE_DIR/skills"
+      ${pkgs.rsync}/bin/rsync -a "${flakeSrc}/claude/skills/" "$CLAUDE_DIR/skills/"
+      echo "pi sync: copied claude/skills"
+    fi
+
     echo "pi sync: done"
   '';
 

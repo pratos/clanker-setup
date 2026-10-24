@@ -193,6 +193,19 @@ PY
 			echo "→ Synced claude/$subdir"
 		fi
 	done
+
+	# Claude-only skills live in claude/skills/. No --delete: ~/.claude/skills
+	# also holds Pi skills mirrored in by the laptop's pi.nix plus Claude-internal
+	# state, so we only add/update and never prune.
+	if [ -d "$ROOT/claude/skills" ]; then
+		mkdir -p "$CLAUDE_DIR/skills"
+		if command -v rsync >/dev/null 2>&1; then
+			rsync -a "$ROOT/claude/skills/" "$CLAUDE_DIR/skills/"
+		else
+			cp -R "$ROOT/claude/skills/." "$CLAUDE_DIR/skills/"
+		fi
+		echo "→ Synced claude/skills"
+	fi
 }
 
 # ---------------------------------------------------------------------------
