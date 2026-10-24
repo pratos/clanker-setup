@@ -3,6 +3,7 @@
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-6",
   "defaultThinkingLevel": "high",
+  "defaultTools": ["+codemode"],
   "shellPath": "/etc/profiles/per-user/pratos/bin/fish",
   "shellCommandPrefix": "source ~/.config/fish/conf.d/secrets.fish 2>/dev/null;",
   "packages": [
