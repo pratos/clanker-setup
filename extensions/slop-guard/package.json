@@ -1,0 +1,18 @@
+{
+  "name": "slop-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "pi extension: guard prose writes against AI slop with TypeSafe's Jev System One model",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "smoke": "bun run scripts/smoke.ts"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.87.1",
+    "@earendil-works/pi-tui": "0.87.1",
+    "@types/node": "^22.10.0",
+    "typebox": "1.3.7",
+    "typescript": "^5.7.0"
+  }
+}

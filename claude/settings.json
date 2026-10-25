@@ -38,10 +38,23 @@
     "type": "command",
     "command": "bash /Users/pratos/.claude/statusline-command.sh"
   },
-  "skipDangerousModePermissionPrompt": true,
+  "enabledPlugins": {
+    "impeccable@impeccable": true,
+    "colgrep@lightonai-colgrep": true
+  },
+  "extraKnownMarketplaces": {
+    "impeccable": {
+      "source": {
+        "source": "github",
+        "repo": "pbakaus/impeccable"
+      }
+    }
+  },
   "modelSettings": {
     "claude-opus-5-5": {
       "effortLevel": "high"
     }
-  }
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "model": "fable"
 }

@@ -1,6 +1,7 @@
 # Pi skills discovered under ~/.pi/agent/skills
 adb-ui-tree
 agentation
+codebase-map
 create-handoff
 describe-pr
 general-video
@@ -23,6 +24,7 @@ obsidian-link-archiver
 openclaw-nix
 python-uv-setup
 resume-handoff
+show-me
 sops-secret-editor
 stagehand-browser
 taste-skill
