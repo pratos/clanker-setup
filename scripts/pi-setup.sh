@@ -57,9 +57,9 @@ install_prereqs() {
 ensure_pi() {
 	if command -v pi >/dev/null 2>&1; then return 0; fi
 
-	echo "→ pi not found. Installing @mariozechner/pi-coding-agent..."
+	echo "→ pi not found. Installing @earendil-works/pi-coding-agent..."
 	if command -v npm >/dev/null 2>&1; then
-		npm install -g @mariozechner/pi-coding-agent
+		npm install -g @earendil-works/pi-coding-agent
 	else
 		echo "npm not found. Install Node.js first." >&2
 		exit 1
@@ -184,12 +184,14 @@ PY
 	for subdir in commands agents rules; do
 		if [ -d "$ROOT/claude/$subdir" ]; then
 			mkdir -p "$CLAUDE_DIR/$subdir"
+			chmod -R u+rwX "$CLAUDE_DIR/$subdir" 2>/dev/null || true
 			if command -v rsync >/dev/null 2>&1; then
 				rsync -a --delete "$ROOT/claude/$subdir/" "$CLAUDE_DIR/$subdir/"
 			else
 				find "$CLAUDE_DIR/$subdir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 				cp -R "$ROOT/claude/$subdir/." "$CLAUDE_DIR/$subdir/"
 			fi
+			chmod -R u+rwX "$CLAUDE_DIR/$subdir" 2>/dev/null || true
 			echo "→ Synced claude/$subdir"
 		fi
 	done
@@ -199,11 +201,15 @@ PY
 	# state, so we only add/update and never prune.
 	if [ -d "$ROOT/claude/skills" ]; then
 		mkdir -p "$CLAUDE_DIR/skills"
+		# Copies from the nix store are read-only; make earlier copies writable
+		# before overwriting, and keep the new ones writable for the next sync.
+		chmod -R u+rwX "$CLAUDE_DIR/skills" 2>/dev/null || true
 		if command -v rsync >/dev/null 2>&1; then
 			rsync -a "$ROOT/claude/skills/" "$CLAUDE_DIR/skills/"
 		else
 			cp -R "$ROOT/claude/skills/." "$CLAUDE_DIR/skills/"
 		fi
+		chmod -R u+rwX "$CLAUDE_DIR/skills" 2>/dev/null || true
 		echo "→ Synced claude/skills"
 	fi
 }

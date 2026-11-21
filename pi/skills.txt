@@ -3,6 +3,7 @@ adb-ui-tree
 agentation
 codebase-map
 create-handoff
+create-plan
 describe-pr
 general-video
 github-issue-reader
@@ -31,4 +32,5 @@ taste-skill
 traces
 ts-dotenv-override
 uv-python-execution
+viz-explainer
 web-search-researcher

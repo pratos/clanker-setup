@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What are the seven words in Greenhouse, and how do they relate?</title>
+<script src="https://cdn.jsdelivr.net/npm/pele@1.12.0/dist/pele.global.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/4.5.0/anime.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #cecdc3; --surface: #f2f0e5;
+    --surface-alt: #e6e4d9; --accent: #205ea6; --accent-ink: #ffffff; --ok: #66800b; --warn: #ad8301;
+    --font: ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif;
+    --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+    --radius: 6px; --gutter: 16px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+      --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+    --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  header, main, footer { padding: 0 var(--gutter); max-width: 1480px; width: 100%; margin: 0 auto; }
+  header { padding-top: 32px; padding-bottom: 4px; }
+  h1 { margin: 0; font-size: clamp(24px, 2.6vw, 34px); line-height: 1.15; letter-spacing: -.02em; font-weight: 650; text-wrap: balance; max-width: 30ch; }
+  .byline { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .byline b { color: var(--fg); font-weight: 550; }
+  ::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 0; flex-wrap: wrap; }
+  .tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  main { display: grid; grid-template-columns: 1fr; gap: 18px; padding-top: 20px; padding-bottom: 28px; flex: 1; align-content: start; }
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; height: min(62vh, 760px); min-height: 340px; overflow: hidden; transition: height .24s var(--ease-out); }
+  .stage-controls { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .stage-controls button { font: inherit; font-size: 12.5px; padding: 5px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 999px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .stage-controls button:hover { color: var(--fg); } }
+  .stage-controls button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg); }
+  .stage-controls button:disabled { opacity: .4; cursor: default; }
+  #diagram { width: 100%; height: 100%; }
+  #diagram svg { width: 100%; height: 100%; display: block; }
+  .rail { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: start; }
+  @media (max-width: 760px) { .rail { grid-template-columns: 1fr; } }
+  .rail-text { max-width: 64ch; }
+  .pele { --pele-bg: transparent; --pele-fg: var(--fg); --pele-muted: var(--muted); --pele-line: var(--fg);
+          --pele-surface: var(--bg); --pele-surface-alt: var(--surface-alt); --pele-border: var(--line);
+          --pele-accent: var(--accent); --pele-font: var(--font); --pele-font-mono: var(--mono); --pele-radius: 4px; }
+  .pele-node, .pele-cluster, .pele-edge, .pele-edge-label { transition: opacity .18s var(--ease-out); }
+  .pele-node.is-focus > :is(rect, path, polygon, ellipse, circle) { stroke: var(--accent); stroke-width: 2.25px; }
+  .pele-cluster.is-focus > rect { stroke: var(--accent); stroke-width: 1.75px; }
+  .pele-edge.is-focus path { stroke: var(--accent); stroke-width: 2px; }
+  .pele-edge.is-focus .pele-marker, .pele-edge.is-focus marker path { fill: var(--accent); stroke: var(--accent); }
+  .step-label { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+  .caption { margin: 0; font-size: clamp(18px, 1.6vw, 22px); line-height: 1.35; font-weight: 500; text-wrap: pretty; }
+  .evidence { list-style: none; margin: 10px 0 0; padding: 0; font: 13px/1.7 var(--mono); color: var(--muted); }
+  .evidence li::before { content: "› "; }
+  .controls { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+  .controls button { font: inherit; font-size: 14px; width: 40px; height: 36px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .controls button:not(:disabled):hover { border-color: var(--fg); } }
+  .controls button:disabled { opacity: .4; cursor: default; }
+  .dots { display: flex; gap: 6px; padding: 0 6px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); display: block; }
+  .dots i.on { background: var(--fg); }
+  .compare { }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .decide { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+  .decide h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .option { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+  .option h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .option p { margin: 0; font-size: 14px; color: var(--muted); }
+  .option .tried { font: 12.5px/1.5 var(--mono); }
+  .option .tried a { color: var(--accent); }
+  .option .tried.no { color: var(--warn); }
+  .option button { align-self: flex-start; font: inherit; font-size: 14px; padding: 7px 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); cursor: pointer; margin-top: 4px; }
+  .option button:disabled { background: var(--surface-alt); color: var(--muted); cursor: not-allowed; }
+  .option.chosen { border-color: var(--ok); }
+  .who { display: none; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .who input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+  .lock { margin: 12px 0 0; font-size: 14px; color: var(--ok); }
+  .propose { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .propose input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); width: 150px; }
+  .propose button { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; }
+  footer { padding-bottom: 20px; font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
+  .embedded body { min-height: 0; }
+  .is-full body { min-height: 100vh; }
+  .is-full header, .is-full main, .is-full footer { max-width: none; }
+  .embedded header { padding-top: 22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="question"></h1>
+  <p class="byline"><span id="kind"></span><span>built by <b id="by"></b></span><span id="at"></span></p>
+  <nav class="tabs" id="tabs" role="tablist" hidden></nav>
+</header>
+<main>
+  <section class="stage"><div id="diagram"></div><div class="stage-controls"><button id="reset" title="r" aria-label="Reset to the first step">reset</button><button id="fit" aria-pressed="false" title="f">fit all</button><button id="full" aria-pressed="false" title="Shift+F">full screen</button></div></section>
+  <section class="rail">
+    <div class="rail-text">
+      <p class="step-label" id="stepLabel"></p>
+      <p class="caption" id="caption"></p>
+      <ul class="evidence" id="evidence"></ul>
+    </div>
+    <div class="controls">
+      <button id="prev" aria-label="Previous step">←</button>
+      <div class="dots" id="dots"></div>
+      <button id="next" aria-label="Next step">→</button>
+    </div>
+  </section>
+  <section class="compare" id="compare" hidden></section>
+  <section class="decide" id="decide" hidden>
+    <h2>Decision</h2>
+    <div class="options" id="options"></div>
+    <div class="who" id="who"><span>Recorded as</span><input id="whoName" placeholder="your name"><button id="whoOk">Confirm</button></div>
+    <p class="lock" id="lock" hidden></p>
+  </section>
+  <section class="propose" id="propose" hidden>
+    <span>Missing a transition?</span>
+    <input id="pFrom" placeholder="from state"><input id="pTo" placeholder="to state"><input id="pCmd" placeholder="Command name">
+    <button id="pSend">Propose</button>
+  </section>
+</main>
+<footer><span id="hint">← → to step · f to fit all · ⇧F full screen · r to reset</span><span id="status">standalone</span></footer>
+
+<script type="application/json" id="spec">
+{
+  "kind": "architecture-map",
+  "question": "What are the seven words in Greenhouse, and how do they relate?",
+  "meta": {
+    "builtBy": "agent · just domain vocabulary",
+    "builtAt": "2026-10-27",
+    "source": "docs/DOMAIN-VOCABULARY.md"
+  },
+  "diagram": "flowchart LR\n  subgraph planning[Planning context]\n    Plan[Plan · one stream]\n    Block[Block]\n    Thread[Thread]\n    Decision[Decision]\n    Exploration[Exploration]\n    Artifact[Artifact]\n  end\n  subgraph identity[Identity context]\n    Participant[Participant · person or agent]\n  end\n  Plan -- has many --> Block\n  Block -- anchors --> Thread\n  Thread -- ends in --> Decision\n  Decision -- attached to --> Block\n  Block -- embeds --> Artifact\n  Plan -- requests --> Exploration\n  Exploration -- reports as --> Artifact\n  Participant -- issues commands --> Plan",
+  "steps": [
+    {
+      "id": "plan",
+      "caption": "A Plan is a document tied to one repo. Everything that happens to it is one stream of events.",
+      "focus": [
+        "Plan"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Plan",
+        "packages/schema/plan.ts"
+      ]
+    },
+    {
+      "id": "block",
+      "caption": "A Block is one unit of a plan. It holds prose, an artifact or research.",
+      "focus": [
+        "Block"
+      ],
+      "edges": [
+        "L_Plan_Block_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Block",
+        "packages/schema/block.ts"
+      ]
+    },
+    {
+      "id": "thread",
+      "caption": "A Thread is a comment thread. It is anchored to exactly one Block.",
+      "focus": [
+        "Thread"
+      ],
+      "edges": [
+        "L_Block_Thread_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Thread · not: discussion, comment chain"
+      ]
+    },
+    {
+      "id": "decision",
+      "caption": "A Decision records who ended a Thread, when, and what they chose. It stays attached to the Block.",
+      "focus": [
+        "Decision"
+      ],
+      "edges": [
+        "L_Thread_Decision_0",
+        "L_Decision_Block_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Decision · not: resolution, verdict, outcome"
+      ]
+    },
+    {
+      "id": "exploration",
+      "caption": "An Exploration is an agent trying one option and reporting back to the plan.",
+      "focus": [
+        "Exploration"
+      ],
+      "edges": [
+        "L_Plan_Exploration_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Exploration"
+      ]
+    },
+    {
+      "id": "artifact",
+      "caption": "An Artifact is an interactive page the agent built. It is embedded in a Block.",
+      "focus": [
+        "Artifact"
+      ],
+      "edges": [
+        "L_Block_Artifact_0",
+        "L_Exploration_Artifact_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Artifact · not: widget, page"
+      ]
+    },
+    {
+      "id": "participant",
+      "caption": "A Participant is a person or an agent. Both issue the same commands with the same rights.",
+      "focus": [
+        "Participant",
+        "identity"
+      ],
+      "edges": [
+        "L_Participant_Plan_0"
+      ],
+      "evidence": [
+        "DOMAIN-VOCABULARY.md · Participant · not: user, bot, assistant"
+      ]
+    }
+  ]
+}
+</script>
+
+<script>
+(() => {
+  const spec = JSON.parse(document.getElementById('spec').textContent);
+  // Embedded in a plan or a doc: size against a fixed reference instead of the frame (which grows to fit us), and report our height.
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add('embedded');
+  // Full means real full screen, or the host page expanding our frame to the window when the browser refuses full screen.
+  let expanded = false;
+  const isFull = () => !!document.fullscreenElement || expanded;
+  const viewH = () => embedded && !isFull() ? 760 : innerHeight;
+  const $ = id => document.getElementById(id);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const D = reduced ? 0 : 1;
+  const KIND = { 'architecture-map': 'Architecture map', 'state-explorer': 'State explorer', 'event-stream': 'Event stream', 'decision-report': 'Decision report', 'trace-view': 'Trace view' };
+
+  let host = null, participant = null, decision = spec.decision || null;
+  let optionId = spec.options?.[0]?.id ?? null;
+  let stepIndex = 0, mounted = null, svg = null, running = null, camera = null, fitAll = false, full = null;
+
+  const post = msg => { const m = { ...msg, artifactId: host?.artifactId, blockId: host?.blockId, planId: host?.planId }; if (host && window.parent !== window) window.parent.postMessage(m, '*'); else console.log('[viz-explainer]', m); };
+
+  document.title = spec.question;
+  $('question').textContent = spec.question;
+  $('kind').textContent = KIND[spec.kind] || spec.kind;
+  $('by').textContent = spec.meta?.builtBy || 'agent';
+  $('at').textContent = spec.meta?.builtAt || '';
+
+  const steps = () => (spec.steps || []).filter(s => !s.option || s.option === optionId);
+  const diagramText = () => spec.options ? spec.options.find(o => o.id === optionId)?.diagram : spec.diagram;
+
+  function mount() {
+    const el = $('diagram');
+    mounted?.destroy();
+    el.innerHTML = '';
+    mounted = pele.mount(el, diagramText(), {
+      idPrefix: (optionId || 'd') + '-',
+      zoom: false,
+      responsive: false,
+      fontSize: 17,
+      padding: 24,
+      onRender: (r) => {
+        svg = el.querySelector('svg');
+        // The page owns the viewBox from here: Pele lays out at natural size, the camera decides what is on screen.
+        full = [0, 0, r.width, r.height];
+        svg.removeAttribute('width'); svg.removeAttribute('height');
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        Object.assign(view, { x: 0, y: 0, w: r.width, h: r.height }); writeView();
+        fitStage();
+        $('fit').hidden = fitsWhole();
+        applyStep(stepIndex, false);
+        updateReset();
+      },
+      onError: e => console.error('[viz-explainer] diagram error', e),
+    });
+  }
+
+  function clearFocus() { svg?.querySelectorAll('.is-focus').forEach(n => n.classList.remove('is-focus')); }
+
+  // Camera: the union of the focused elements' boxes, in SVG units, with room around it. Never zoom past 1:1 by much,
+  // never tighter than a third of the map, so a single small node does not become a wall of text.
+  function boxOf(elements) {
+    const m = svg.getScreenCTM()?.inverse(); if (!m || !elements.length) return null;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const el of elements) {
+      const r = el.getBoundingClientRect();
+      for (const [cx, cy] of [[r.left, r.top], [r.right, r.bottom]]) { const p = new DOMPoint(cx, cy).matrixTransform(m); x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); }
+    }
+    const stage = $('diagram').getBoundingClientRect(); const aspect = stage.width / Math.max(1, stage.height);
+    const pad = 64; let w = x2 - x1 + pad * 2, h = y2 - y1 + pad * 2;
+    // Never zoom past 1.1:1, so labels stay readable instead of billboard-sized.
+    const minW = Math.min(full[2], stage.width / 1.1);
+    if (w < minW) w = minW;
+    if (h < w / aspect) h = w / aspect; else w = h * aspect;
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    // Keep the frame inside the map: a node at the edge shows its neighbours, not empty stage.
+    const clamp = (v, size, total) => size >= total ? (total - size) / 2 : Math.min(Math.max(v, 0), total - size);
+    const box = [clamp(cx - w / 2, w, full[2]), clamp(cy - h / 2, h, full[3]), w, h];
+    box.raw = Math.max(x2 - x1, (y2 - y1) * aspect);
+    return box;
+  }
+  // The stage takes its height from the diagram's proportions, with headroom for the camera, so a wide map is not letterboxed.
+  function fitStage() {
+    if (!full) return;
+    const stage = document.querySelector('.stage');
+    // Full screen: the stage takes every pixel the heading, caption and controls leave.
+    if (isFull()) { const rest = ['header', '.rail', 'footer'].reduce((n, q) => n + (document.querySelector(q)?.offsetHeight ?? 0), 0) + 96; stage.style.height = `${Math.max(320, innerHeight - rest)}px`; return; }
+    // A diagram that fits at natural size gets a stage its own height and no camera. A wider one gets most of the viewport.
+    const h = fitsWhole() ? full[3] + 32 : Math.max(viewH() * 0.56, 420, stage.clientWidth * (full[3] / full[2]));
+    stage.style.height = `${Math.round(Math.min(viewH() * 0.64, Math.max(300, h)))}px`;
+  }
+
+  function fitsWhole() { const stage = document.querySelector('.stage'); return !!full && full[2] <= stage.clientWidth * 1.05; }
+
+  // Tween a plain object and write the viewBox each frame: anime does not interpolate a four-number attribute string.
+  const view = { x: 0, y: 0, w: 1, h: 1 };
+  const writeView = () => svg?.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+  function moveCamera(box, animated) {
+    if (!svg || !box) return;
+    camera?.pause?.();
+    const [x, y, w, h] = box;
+    if (!animated || !D) { Object.assign(view, { x, y, w, h }); writeView(); return; }
+    camera = anime.animate(view, { x, y, w, h, duration: 480, ease: 'inOutQuart', onUpdate: writeView });
+  }
+  $('fit').onclick = () => { fitAll = !fitAll; $('fit').setAttribute('aria-pressed', String(fitAll)); applyStep(stepIndex, true); updateReset(); };
+
+  // Reset the view, not the record: step 1, first option, the step's own frame. A recorded decision is an event and stays.
+  function reset() {
+    fitAll = false; $('fit').setAttribute('aria-pressed', 'false');
+    const first = spec.options?.[0]?.id ?? null;
+    if (first && optionId !== first) {
+      optionId = first; stepIndex = 0;
+      [...$('tabs').children].forEach(t => t.setAttribute('aria-selected', String(t.dataset.id === first)));
+      mount();
+    } else go(0);
+    history.replaceState(null, '', location.pathname + location.search);
+    updateReset();
+  }
+  function updateReset() { $('reset').disabled = stepIndex === 0 && !fitAll && (!spec.options || optionId === spec.options[0].id); }
+  $('reset').onclick = reset;
+
+  // Full screen the whole artifact, not just the drawing, so the caption and step controls stay with it.
+  if (!document.fullscreenEnabled && !embedded) $('full').hidden = true;
+  const onFullChange = () => {
+    document.documentElement.classList.toggle('is-full', isFull());
+    $('full').setAttribute('aria-pressed', String(isFull()));
+    $('full').textContent = isFull() ? 'exit full screen' : 'full screen';
+    requestAnimationFrame(() => { fitStage(); applyStep(stepIndex, false); });
+  };
+  $('full').onclick = () => {
+    if (document.fullscreenElement) return document.exitFullscreen();
+    if (expanded) return parent.postMessage({ fullscreen: 'exit' }, '*');
+    // Some browsers and embeds refuse full screen; then ask the host page to expand our frame instead.
+    document.documentElement.requestFullscreen().catch(() => { if (embedded) parent.postMessage({ fullscreen: 'expand' }, '*'); });
+  };
+  document.addEventListener('fullscreenchange', onFullChange);
+  addEventListener('message', (e) => { if (e.data && typeof e.data.expanded === 'boolean') { expanded = e.data.expanded; onFullChange(); } });
+
+  function applyStep(i, animated) {
+    const list = steps();
+    const step = list[i];
+    $('stepLabel').textContent = list.length ? `Step ${i + 1} of ${list.length}` : '';
+    $('caption').textContent = step?.caption || '';
+    $('evidence').innerHTML = (step?.evidence || []).map(e => `<li>${esc(e)}</li>`).join('');
+    $('prev').disabled = i <= 0; $('next').disabled = i >= list.length - 1;
+    $('dots').innerHTML = list.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
+    if (!svg || !step) return;
+    running?.complete?.();
+    clearFocus();
+    const nodes = svg.querySelectorAll('.pele-node, .pele-cluster');
+    const edges = svg.querySelectorAll('.pele-edge, .pele-edge-label');
+    const focusIds = step.focus || [], edgeIds = step.edges || [];
+    const on = focusIds.map(id => svg.querySelector(`.pele-node[data-id="${id}"], .pele-cluster[data-id="${id}"]`)).filter(Boolean);
+    const onEdges = edgeIds.map(id => svg.querySelector(`.pele-edge[data-id="${id}"]`)).filter(Boolean);
+    // Frame the focus and both ends of every focused edge, so an arrow never points off screen.
+    const ends = edgeIds.flatMap(id => (/^L_(.+)_(.+)_\d+$/.exec(id) ?? []).slice(1))
+      .map(n => svg.querySelector(`.pele-node[data-id="${n}"]`)).filter(Boolean);
+    // Frame what is highlighted. Pull out to an edge's far end only when that costs little zoom;
+    // otherwise the edge leaves the frame pointing where it goes, and the highlight stays readable.
+    const tight = on.length ? boxOf(on) : null;
+    const wide = boxOf([...on, ...onEdges, ...ends]);
+    const roomy = tight && wide && wide.raw <= Math.max(tight.raw * 1.6, ($('diagram').clientWidth / 1.1) * 0.9);
+    moveCamera(fitAll || fitsWhole() || !(on.length || onEdges.length) ? full : (tight && !roomy ? tight : wide), animated);
+    const dim = focusIds.length || edgeIds.length ? 0.3 : 1;
+    const dur = animated ? 180 * D : 0;
+    anime.animate(nodes, { opacity: dim, duration: dur, ease: 'outQuad' });
+    anime.animate(edges, { opacity: dim, duration: dur, ease: 'outQuad' });
+    anime.animate(on, { opacity: 1, duration: dur, ease: 'outQuad' });
+    on.forEach(n => n.classList.add('is-focus'));
+    onEdges.forEach((g, k) => {
+      g.classList.add('is-focus');
+      anime.animate(g, { opacity: 1, duration: dur, ease: 'outQuad' });
+      const label = svg.querySelector(`.pele-edge-label[data-id="${g.dataset.id}"]`); if (label) anime.animate(label, { opacity: 1, duration: dur });
+      const path = g.querySelector('path');
+      if (path && animated && D) {
+        const [drawable] = anime.svg.createDrawable(path);
+        running = anime.animate(drawable, { draw: ['0 0', '0 1'], duration: 420, delay: k * 120, ease: 'inOutQuad' });
+      }
+    });
+    post({ type: 'greenhouse:step', index: i, id: step.id });
+  }
+
+  function go(i) {
+    const n = steps().length; stepIndex = Math.max(0, Math.min(n - 1, i)); applyStep(stepIndex, true); updateReset();
+    const id = steps()[stepIndex]?.id; if (id) history.replaceState(null, '', `#${id}`);
+  }
+  // Deep link: index.html#share opens on the step with that id.
+  const fromHash = () => { const i = steps().findIndex(s => s.id === decodeURIComponent(location.hash.slice(1))); return i < 0 ? 0 : i; };
+  stepIndex = fromHash();
+  addEventListener('hashchange', () => go(fromHash()));
+  $('prev').onclick = () => go(stepIndex - 1);
+  $('next').onclick = () => go(stepIndex + 1);
+  addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') go(stepIndex + 1); if (e.key === 'ArrowLeft') go(stepIndex - 1); if (e.key === 'f') $('fit').click(); if (e.key === 'F') $('full').click(); if (e.key === 'Escape' && expanded) parent.postMessage({ fullscreen: 'exit' }, '*'); if (e.key === 'r' || e.key === 'Home') reset(); });
+  addEventListener('resize', () => { fitStage(); applyStep(stepIndex, false); });
+
+  // Options: tabs, comparison, decision
+  if (spec.options?.length) {
+    const tabs = $('tabs'); tabs.hidden = false;
+    tabs.innerHTML = spec.options.map(o => `<button role="tab" data-id="${esc(o.id)}" aria-selected="${o.id === optionId}">${esc(o.label)}</button>`).join('');
+    tabs.onclick = e => { const b = e.target.closest('button'); if (!b) return; optionId = b.dataset.id; stepIndex = 0; [...tabs.children].forEach(t => t.setAttribute('aria-selected', t === b)); mount(); updateReset(); };
+
+    // The comparison rows are the questions that matter for this decision: `spec.axes` = [{ key, label }], `option.axes[key]` = a short answer.
+    // Without `spec.axes`, the code-change defaults apply.
+    const axes = spec.axes
+      ? spec.axes.map(a => [esc(a.label), o => esc(o.axes?.[a.key] ?? '')])
+      : [['Call sites touched', o => o.axes?.callSites ? `${o.axes.callSites.count}${o.axes.callSites.list?.length ? ' · ' + o.axes.callSites.list.map(esc).join(', ') : ''}` : ''], ['Mechanical vs judgement', o => esc(o.axes?.mechanical || '')], ['Silent behaviour changes', o => esc(o.axes?.silent || '')], ['Invariant at risk', o => esc(o.axes?.invariant || '')]];
+    if (spec.options.some(o => o.axes)) {
+      $('compare').hidden = false;
+      $('compare').innerHTML = `<table><thead><tr><th></th>${spec.options.map(o => `<th>${esc(o.label)}</th>`).join('')}</tr></thead><tbody>${axes.map(([name, f]) => `<tr><td>${name}</td>${spec.options.map(o => `<td>${f(o)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+
+    if (spec.kind === 'decision-report') {
+      $('decide').hidden = false;
+      renderOptions();
+    }
+  }
+
+  function renderOptions() {
+    $('options').innerHTML = spec.options.map(o => {
+      const tried = o.tried ? `<span class="tried">tried · ${esc(o.tried.kind)} ${o.tried.ref ? (o.tried.href ? `<a href="${esc(o.tried.href)}">${esc(o.tried.ref)}</a>` : esc(o.tried.ref)) : ''}${o.tried.summary ? ' · ' + esc(o.tried.summary) : ''}</span>` : `<span class="tried no">not explored yet · cannot be chosen</span>`;
+      const chosen = decision?.optionId === o.id;
+      return `<div class="option ${chosen ? 'chosen' : ''}" data-id="${esc(o.id)}"><h3>${esc(o.label)}</h3><p>${esc(o.summary || '')}</p>${tried}<button ${(!o.tried || decision) ? 'disabled' : ''} data-choose="${esc(o.id)}">${chosen ? 'Chosen' : 'Choose'}</button></div>`;
+    }).join('');
+    if (decision) { $('lock').hidden = false; $('lock').textContent = `Decided by ${decision.by?.name || 'unknown'} · ${fmt(decision.at)} · ${spec.options.find(o => o.id === decision.optionId)?.label || decision.optionId}`; }
+  }
+  let pending = null;
+  $('options').onclick = e => {
+    const b = e.target.closest('button[data-choose]'); if (!b || b.disabled) return;
+    pending = b.dataset.choose;
+    if (participant) return commit();
+    $('who').style.display = 'flex'; $('whoName').focus();
+  };
+  $('whoOk').onclick = () => { const n = $('whoName').value.trim(); if (!n) return; participant = { id: null, name: n, kind: 'person' }; $('who').style.display = 'none'; commit(); };
+  function commit() {
+    const o = spec.options.find(x => x.id === pending); if (!o) return;
+    decision = { optionId: o.id, label: o.label, by: participant, at: new Date().toISOString(), tried: o.tried ? { kind: o.tried.kind, ref: o.tried.ref } : null };
+    post({ type: 'greenhouse:decision', ...decision });
+    renderOptions();
+    $('status').textContent = host ? 'recorded in plan' : 'recorded locally (no host)';
+  }
+
+  // State-explorer proposals
+  if (spec.proposals) {
+    $('propose').hidden = false;
+    $('pSend').onclick = () => { const m = { type: 'greenhouse:proposal', from: $('pFrom').value.trim(), to: $('pTo').value.trim(), command: $('pCmd').value.trim() }; if (!m.from || !m.to || !m.command) return; post(m); $('pSend').textContent = 'Proposed'; setTimeout(() => $('pSend').textContent = 'Propose', 1500); };
+  }
+
+  // Host protocol
+  addEventListener('message', e => {
+    const m = e.data; if (!m || m.type !== 'greenhouse:init') return;
+    host = m; participant = m.participant || null;
+    if (m.theme) for (const [k, v] of Object.entries(m.theme)) document.documentElement.style.setProperty(k, v);
+    if (m.decision) { decision = m.decision; if (spec.options) renderOptions(); }
+    $('status').textContent = `in plan · ${participant?.name || 'anonymous'}`;
+  });
+  post({ type: 'greenhouse:ready', kind: spec.kind, question: spec.question });
+  if (embedded) new ResizeObserver(() => parent.postMessage({ frameHeight: Math.ceil(document.body.getBoundingClientRect().height) }, '*')).observe(document.body);
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  // A plain date stays a plain date; only a full timestamp gets a time, so a date never turns into a timezone artifact.
+  function fmt(iso) { if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso; try { return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } }
+
+  mount();
+})();
+</script>
+</body>
+</html>

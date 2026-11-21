@@ -1,0 +1,1594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolve a comment thread into a decision</title>
+<script>
+  // Frames report their own height; listen before any of them load, and match by sender, not by a label.
+  addEventListener('message', (e) => {
+    const h = e.data && e.data.frameHeight; if (!h) return;
+    for (const f of document.querySelectorAll('iframe')) if (f.contentWindow === e.source && !f.classList.contains('is-expanded')) f.style.height = Math.min(Math.max(h + 4, 60), 2400) + 'px';
+  });
+</script>
+<style>:root {
+  --bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #dad8ce; --surface: #f2f0e5; --surface-alt: #e6e4d9;
+  --accent: #205ea6; --ok: #66800b; --warn: #ad8301; --err: #af3029;
+  --font: ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --measure: 68ch;
+  --syn-kw: #5e409d; --syn-str: #66800b; --syn-num: #ad8301; --syn-type: #205ea6; --syn-fn: #24837b; --syn-com: #878580; --syn-add: #66800b; --syn-del: #af3029;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #343331; --surface: #1c1b1a; --surface-alt: #282726;
+    --accent: #4385be; --ok: #879a39; --warn: #d0a215; --err: #d14d41;
+    --syn-kw: #8b7ec8; --syn-str: #879a39; --syn-num: #d0a215; --syn-type: #4385be; --syn-fn: #3aa99f; --syn-com: #6f6e69; --syn-add: #879a39; --syn-del: #d14d41;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code { font: 0.86em/1.5 var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 0.05em 0.35em; }
+pre { margin: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+pre code { display: block; padding: 14px 16px; border-radius: 10px; font-size: 13.5px; line-height: 1.6; white-space: pre; }
+
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 56px; max-width: 1320px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; } .toc { display: none; } }
+
+.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 40px 0 24px; font-size: 14px; }
+.toc-title { margin: 0 0 12px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.progress { height: 4px; background: var(--surface-alt); border-radius: 999px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--ok); }
+.progress-label { margin: 6px 0 18px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc li { display: flex; justify-content: space-between; gap: 8px; }
+.toc a { color: var(--muted); text-decoration: none; padding: 3px 0; transition: color .15s ease; }
+@media (hover: hover) and (pointer: fine) { .toc a:hover { color: var(--fg); } }
+.toc a[aria-current] { color: var(--fg); font-weight: 550; }
+.toc-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 4px; }
+
+main { padding: 40px 0 80px; min-width: 0; }
+main > section, main > header, main > footer { max-width: 920px; }
+main p, main li { max-width: var(--measure); }
+.plan-head h1 { margin: 0; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.12; letter-spacing: -0.025em; font-weight: 650; text-wrap: balance; max-width: 24ch; }
+.byline { margin: 14px 0 0; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.byline b { color: var(--fg); font-weight: 550; }
+.lede { font-size: 19.5px; line-height: 1.55; margin-top: 28px; }
+.lede p { margin: 0 0 0.7em; }
+
+h2 { margin: 64px 0 14px; font-size: 25px; line-height: 1.2; letter-spacing: -0.015em; font-weight: 640; text-wrap: balance; }
+h3 { margin: 32px 0 10px; font-size: 18px; letter-spacing: -0.005em; font-weight: 620; }
+h4 { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+main ul { padding-left: 1.2em; }
+main li { margin: 0.25em 0; }
+.discoveries li::marker { color: var(--accent); }
+
+.pill { display: inline-block; font-size: 12.5px; line-height: 1; padding: 5px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill-final, .pill-done { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.pill-implementing, .pill-in-progress { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.pill-draft { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 45%, transparent); }
+
+.phase { padding-top: 8px; }
+.phase-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); }
+.phase-head h2 { margin: 0; }
+.phase-num { color: var(--muted); font-weight: 500; margin-right: 6px; }
+.changes { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.change { max-width: none !important; display: grid; gap: 6px; }
+.change .file { justify-self: start; font-size: 13px; }
+.change .intent { max-width: var(--measure); }
+.change .intent p { margin: 0; }
+.contract { max-width: 920px; }
+
+/* Code blocks: every contract and every fence in prose. A bar names the language; colours come from the palette above. */
+.codeblock { margin: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; max-width: 920px; }
+.codeblock figcaption { display: flex; justify-content: space-between; gap: 12px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: var(--surface-alt); font: 600 11.5px/1.4 var(--font); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.codeblock figcaption .where { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.codeblock pre code { border: 0; border-radius: 0; background: none; padding: 12px 16px 14px; }
+.tok-kw { color: var(--syn-kw); } .tok-str { color: var(--syn-str); } .tok-num { color: var(--syn-num); }
+.tok-type { color: var(--syn-type); } .tok-fn { color: var(--syn-fn); } .tok-com { color: var(--syn-com); font-style: italic; }
+.tok-add { color: var(--syn-add); } .tok-del { color: var(--syn-del); }
+/* A Markdown contract reads as the document it will become: headings, tables and code, wrapped, never a raw source dump. */
+.contract.is-md .md-body { padding: 4px 18px 14px; font-size: 15px; line-height: 1.55; }
+.contract.is-md .md-body > :first-child { margin-top: 10px; }
+.contract.is-md .md-body h1, .contract.is-md .md-body h2 { font-size: 17px; margin: 14px 0 6px; }
+.contract.is-md .md-body h3, .contract.is-md .md-body h4 { font-size: 15.5px; margin: 12px 0 4px; }
+.contract.is-md .md-body p { margin: 4px 0; max-width: var(--measure); }
+.contract.is-md .md-body table { font-size: 14px; margin: 6px 0; }
+.contract.is-md .md-body .codeblock { margin: 8px 0; background: var(--bg); }
+main .prose .codeblock, main section > .codeblock { margin: 12px 0; }
+.verify { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 32px; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.check { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; }
+.check input { margin: 4px 0 0; accent-color: var(--ok); width: 16px; height: 16px; }
+.check.is-done span { color: var(--muted); }
+.none { color: var(--muted); font-size: 14px; }
+.phase-notes { margin-top: 18px; color: var(--muted); }
+
+.decision { margin: 22px 0 30px; }
+.decision h3 { margin-top: 0; }
+.chosen { margin: 0 0 8px; }
+.chosen b { color: var(--ok); font-weight: 600; }
+.open { color: var(--warn); }
+
+iframe.viz { display: block; width: 100%; max-width: 1040px; height: 640px; transition: height .2s ease; border: 1px solid var(--line); border-radius: 14px; margin: 18px 0 8px; background: var(--bg); }
+.component-block { margin: 18px 0 26px; max-width: 1040px; }
+.component-block figcaption { font-size: 14.5px; color: var(--muted); margin-bottom: 10px; }
+.component-block figcaption b { color: var(--fg); font-weight: 600; }
+.states { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.state-label { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; }
+.state-label .full { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) { .state-label .full:hover { color: var(--fg); } }
+iframe.component:fullscreen { height: 100vh !important; border: 0; border-radius: 0; }
+iframe.component { display: block; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); transition: height .2s ease; }
+details { margin-top: 10px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13.5px; }
+details pre code { margin-top: 8px; }
+
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.swatch { display: grid; grid-template-columns: 36px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; font-size: 13.5px; }
+.swatch span { grid-row: span 2; width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line); }
+.swatch code { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; }
+.type { display: grid; gap: 14px; }
+.type-row { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: baseline; }
+.type-meta { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.space { display: grid; gap: 6px; }
+.space-row { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.space-row .bar { display: block; height: 10px; background: var(--accent); border-radius: 3px; opacity: .75; }
+.space-row code { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; }
+.radii { display: flex; gap: 16px; flex-wrap: wrap; }
+.radius { display: grid; gap: 6px; justify-items: start; }
+.radius span { width: 56px; height: 40px; border: 1.5px solid var(--fg); }
+.radius code { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+main > footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
+
+details.report { margin-top: 8px; }
+details.report > summary { font-size: 14px; color: var(--accent); width: fit-content; }
+details.report[open] > summary { margin-bottom: 4px; }
+
+iframe.is-expanded { position: fixed; inset: 0; z-index: 1000; width: 100vw !important; max-width: none; height: 100vh !important; margin: 0; border: 0; border-radius: 0; }
+body.has-expanded { overflow: hidden; }
+.expanded-close { position: fixed; z-index: 1001; top: 14px; right: 18px; font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; box-shadow: 0 6px 20px -8px rgb(0 0 0 / .5); }
+
+/* Versions: newest first; who, through what, why, what changed; the prompt and session folded away. */
+.v-how { color: var(--muted); font-size: 14px; }
+.versions { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 18px; }
+.version { border-left: 2px solid var(--line); padding: 2px 0 2px 16px; }
+.version:first-child { border-left-color: var(--accent); }
+.v-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 13.5px; color: var(--muted); }
+.v-num { font-weight: 650; color: var(--fg); font-variant-numeric: tabular-nums; }
+.v-commit { font-size: 12px; }
+.v-intent { margin: 4px 0 2px; max-width: var(--measure); }
+.v-changes { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
+.v-changes li { margin: 1px 0; }
+.v-origin { margin-top: 6px; font-size: 14px; }
+.v-origin > summary { color: var(--accent); cursor: pointer; width: fit-content; }
+.v-origin blockquote { margin: 8px 0 4px; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; white-space: pre-wrap; max-width: var(--measure); }
+.v-session { margin: 4px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+
+/* Vocabulary: one table per context; the status is a quiet tag, the word reads first. */
+.term-counts { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.term-context { margin: 26px 0 6px; font-size: 15px; letter-spacing: 0.02em; color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+.terms th[scope="row"] { color: var(--fg); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.terms td { font-size: 14.5px; }
+.terms thead th:first-child { width: 9.5em; } .terms thead th:nth-child(2) { width: 6.5em; } .terms thead th:last-child { width: 13em; }
+.term-from, .term-not { color: var(--muted); }
+.term-not { font-size: 13.5px; }
+.term-status { display: inline-block; font-size: 11.5px; line-height: 1.5; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.term-status.is-new { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.term-status.is-adopted { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.term-status.is-renamed, .term-status.is-changed { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 45%, transparent); }
+
+/* A section's lead line: what it is and how to read it. */
+.lede-line { color: var(--muted); font-size: 14.5px; margin: -2px 0 14px; max-width: var(--measure); }
+h3 + .lede-line { margin-top: -4px; }
+.term-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 24px; margin: 6px 0 4px; font-size: 13.5px; color: var(--muted); }
+.term-legend div { display: grid; grid-template-columns: 6.5em 1fr; gap: 8px; align-items: baseline; }
+.term-legend dd { margin: 0; }
+.term-about { color: var(--muted); font-size: 14px; margin: -2px 0 8px; max-width: var(--measure); }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Plan sections">
+  <p class="toc-title">Resolve a comment thread into a decision</p>
+  <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="8"><span style="width:80%"></span></div>
+  <p class="progress-label">8 of 10 checks done</p>
+  <ol><li><a href="#summary">Summary</a></li><li><a href="#current">Where we are</a></li><li><a href="#end">Where we end up</a></li><li><a href="#not">Not doing</a></li><li><a href="#approach">Approach</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#design">Design language</a></li><li><a href="#domain">1. Domain: resolve records two facts</a><span class="toc-count">3/3</span></li><li><a href="#flag">2. Flag and API: the behaviour exists and is off</a><span class="toc-count">2/3</span></li><li><a href="#page">3. Plan page: resolve where the thread is</a><span class="toc-count">3/4</span></li><li><a href="#references">References</a></li><li><a href="#versions">Versions · v4</a></li></ol>
+</nav>
+<main>
+  <header class="plan-head">
+    <h1>Resolve a comment thread into a decision</h1>
+    <p class="byline"><b>GH-12</b> · 2026-10-28 · <span class="pill pill-implementing">implementing</span> · pratos with Claude Code · 2 min read · built from <code>skills/create-plan/assets/example.plan.json</code></p>
+  </header>
+  <section id="summary" class="lede"><p>Today a comment thread on a block just ends. After this plan, a person or the agent resolves it with one sentence of what was decided, and that <strong>decision stays attached to the block</strong> with who decided and when. It ships behind the <code>resolve-thread</code> flag, off by default.</p>
+</section>
+  <section id="current"><h2>Where we are</h2><p>Threads can be opened and replied to. Nothing records how a thread ended, so the same question gets argued again a week later. The plan room already keeps every change as an event, so a decision can be one more fact in that log.</p>
+<ul class="discoveries"><li>The plan room appends every event a command produces in one synchronous block, so two events from one command land together or not at all.</li><li>Flags are read once per request and passed to the plan room as names; a function would arrive as a promise and read as true.</li><li>The domain vocabulary already names <strong>Decision</strong> and bans <em>resolution</em>, <em>verdict</em> and <em>outcome</em>.</li></ul></section>
+  <section id="end"><h2>Where we end up</h2><p>Resolving a thread records two facts, <code>ThreadResolved</code> and <code>DecisionRecorded</code>. A second resolve is refused. The plan page shows the decision on the thread, and every open tab sees it at once. People without the flag see the thread as before.</p>
+</section>
+  
+  <section id="not"><h2>Not doing</h2><p class="lede-line">Out of scope for this plan, each with the reason in the same line.</p><ul><li>Reopening a resolved thread; nobody has asked for it yet.</li><li>Editing a recorded decision; a change of mind is a new thread.</li><li>Notifications outside the plan page.</li></ul></section>
+  <section id="approach"><h2>Approach</h2><p>Domain first, because event shapes are the contract everything else reads. Then the flag and API, so the behaviour exists and is off. Then the page, with every state shown first.</p>
+<iframe class="viz" title="How does a thread move from open to decided?" allow="fullscreen" allowfullscreen srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;How does a thread move from open to decided?&lt;/title&gt;
+&lt;script src=&quot;https://cdn.jsdelivr.net/npm/pele@1.12.0/dist/pele.global.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/animejs/4.5.0/anime.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;style&gt;
+  :root {
+    --bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #cecdc3; --surface: #f2f0e5;
+    --surface-alt: #e6e4d9; --accent: #205ea6; --accent-ink: #ffffff; --ok: #66800b; --warn: #ad8301;
+    --font: ui-sans-serif, system-ui, -apple-system, &quot;Inter&quot;, sans-serif;
+    --mono: ui-monospace, &quot;JetBrains Mono&quot;, &quot;SF Mono&quot;, Menlo, monospace;
+    --radius: 6px; --gutter: 16px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=&quot;light&quot;]) {
+      --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+      --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+    }
+  }
+  :root[data-theme=&quot;dark&quot;] {
+    --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+    --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  header, main, footer { padding: 0 var(--gutter); max-width: 1480px; width: 100%; margin: 0 auto; }
+  header { padding-top: 32px; padding-bottom: 4px; }
+  h1 { margin: 0; font-size: clamp(24px, 2.6vw, 34px); line-height: 1.15; letter-spacing: -.02em; font-weight: 650; text-wrap: balance; max-width: 30ch; }
+  .byline { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .byline b { color: var(--fg); font-weight: 550; }
+  ::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 0; flex-wrap: wrap; }
+  .tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected=&quot;true&quot;] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  main { display: grid; grid-template-columns: 1fr; gap: 18px; padding-top: 20px; padding-bottom: 28px; flex: 1; align-content: start; }
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; height: min(62vh, 760px); min-height: 340px; overflow: hidden; transition: height .24s var(--ease-out); }
+  .stage-controls { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .stage-controls button { font: inherit; font-size: 12.5px; padding: 5px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 999px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .stage-controls button:hover { color: var(--fg); } }
+  .stage-controls button[aria-pressed=&quot;true&quot;] { color: var(--fg); border-color: var(--fg); }
+  .stage-controls button:disabled { opacity: .4; cursor: default; }
+  #diagram { width: 100%; height: 100%; }
+  #diagram svg { width: 100%; height: 100%; display: block; }
+  .rail { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: start; }
+  @media (max-width: 760px) { .rail { grid-template-columns: 1fr; } }
+  .rail-text { max-width: 64ch; }
+  .pele { --pele-bg: transparent; --pele-fg: var(--fg); --pele-muted: var(--muted); --pele-line: var(--fg);
+          --pele-surface: var(--bg); --pele-surface-alt: var(--surface-alt); --pele-border: var(--line);
+          --pele-accent: var(--accent); --pele-font: var(--font); --pele-font-mono: var(--mono); --pele-radius: 4px; }
+  .pele-node, .pele-cluster, .pele-edge, .pele-edge-label { transition: opacity .18s var(--ease-out); }
+  .pele-node.is-focus &gt; :is(rect, path, polygon, ellipse, circle) { stroke: var(--accent); stroke-width: 2.25px; }
+  .pele-cluster.is-focus &gt; rect { stroke: var(--accent); stroke-width: 1.75px; }
+  .pele-edge.is-focus path { stroke: var(--accent); stroke-width: 2px; }
+  .pele-edge.is-focus .pele-marker, .pele-edge.is-focus marker path { fill: var(--accent); stroke: var(--accent); }
+  .step-label { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+  .caption { margin: 0; font-size: clamp(18px, 1.6vw, 22px); line-height: 1.35; font-weight: 500; text-wrap: pretty; }
+  .evidence { list-style: none; margin: 10px 0 0; padding: 0; font: 13px/1.7 var(--mono); color: var(--muted); }
+  .evidence li::before { content: &quot;› &quot;; }
+  .controls { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+  .controls button { font: inherit; font-size: 14px; width: 40px; height: 36px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .controls button:not(:disabled):hover { border-color: var(--fg); } }
+  .controls button:disabled { opacity: .4; cursor: default; }
+  .dots { display: flex; gap: 6px; padding: 0 6px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); display: block; }
+  .dots i.on { background: var(--fg); }
+  .compare { }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .decide { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+  .decide h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .option { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+  .option h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .option p { margin: 0; font-size: 14px; color: var(--muted); }
+  .option .tried { font: 12.5px/1.5 var(--mono); }
+  .option .tried a { color: var(--accent); }
+  .option .tried.no { color: var(--warn); }
+  .option button { align-self: flex-start; font: inherit; font-size: 14px; padding: 7px 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); cursor: pointer; margin-top: 4px; }
+  .option button:disabled { background: var(--surface-alt); color: var(--muted); cursor: not-allowed; }
+  .option.chosen { border-color: var(--ok); }
+  .who { display: none; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .who input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+  .lock { margin: 12px 0 0; font-size: 14px; color: var(--ok); }
+  .propose { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .propose input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); width: 150px; }
+  .propose button { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; }
+  footer { padding-bottom: 20px; font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
+  .embedded body { min-height: 0; }
+  .is-full body { min-height: 100vh; }
+  .is-full header, .is-full main, .is-full footer { max-width: none; }
+  .embedded header { padding-top: 22px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header&gt;
+  &lt;h1 id=&quot;question&quot;&gt;&lt;/h1&gt;
+  &lt;p class=&quot;byline&quot;&gt;&lt;span id=&quot;kind&quot;&gt;&lt;/span&gt;&lt;span&gt;built by &lt;b id=&quot;by&quot;&gt;&lt;/b&gt;&lt;/span&gt;&lt;span id=&quot;at&quot;&gt;&lt;/span&gt;&lt;/p&gt;
+  &lt;nav class=&quot;tabs&quot; id=&quot;tabs&quot; role=&quot;tablist&quot; hidden&gt;&lt;/nav&gt;
+&lt;/header&gt;
+&lt;main&gt;
+  &lt;section class=&quot;stage&quot;&gt;&lt;div id=&quot;diagram&quot;&gt;&lt;/div&gt;&lt;div class=&quot;stage-controls&quot;&gt;&lt;button id=&quot;reset&quot; title=&quot;r&quot; aria-label=&quot;Reset to the first step&quot;&gt;reset&lt;/button&gt;&lt;button id=&quot;fit&quot; aria-pressed=&quot;false&quot; title=&quot;f&quot;&gt;fit all&lt;/button&gt;&lt;button id=&quot;full&quot; aria-pressed=&quot;false&quot; title=&quot;Shift+F&quot;&gt;full screen&lt;/button&gt;&lt;/div&gt;&lt;/section&gt;
+  &lt;section class=&quot;rail&quot;&gt;
+    &lt;div class=&quot;rail-text&quot;&gt;
+      &lt;p class=&quot;step-label&quot; id=&quot;stepLabel&quot;&gt;&lt;/p&gt;
+      &lt;p class=&quot;caption&quot; id=&quot;caption&quot;&gt;&lt;/p&gt;
+      &lt;ul class=&quot;evidence&quot; id=&quot;evidence&quot;&gt;&lt;/ul&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;controls&quot;&gt;
+      &lt;button id=&quot;prev&quot; aria-label=&quot;Previous step&quot;&gt;←&lt;/button&gt;
+      &lt;div class=&quot;dots&quot; id=&quot;dots&quot;&gt;&lt;/div&gt;
+      &lt;button id=&quot;next&quot; aria-label=&quot;Next step&quot;&gt;→&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;compare&quot; id=&quot;compare&quot; hidden&gt;&lt;/section&gt;
+  &lt;section class=&quot;decide&quot; id=&quot;decide&quot; hidden&gt;
+    &lt;h2&gt;Decision&lt;/h2&gt;
+    &lt;div class=&quot;options&quot; id=&quot;options&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;who&quot; id=&quot;who&quot;&gt;&lt;span&gt;Recorded as&lt;/span&gt;&lt;input id=&quot;whoName&quot; placeholder=&quot;your name&quot;&gt;&lt;button id=&quot;whoOk&quot;&gt;Confirm&lt;/button&gt;&lt;/div&gt;
+    &lt;p class=&quot;lock&quot; id=&quot;lock&quot; hidden&gt;&lt;/p&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;propose&quot; id=&quot;propose&quot; hidden&gt;
+    &lt;span&gt;Missing a transition?&lt;/span&gt;
+    &lt;input id=&quot;pFrom&quot; placeholder=&quot;from state&quot;&gt;&lt;input id=&quot;pTo&quot; placeholder=&quot;to state&quot;&gt;&lt;input id=&quot;pCmd&quot; placeholder=&quot;Command name&quot;&gt;
+    &lt;button id=&quot;pSend&quot;&gt;Propose&lt;/button&gt;
+  &lt;/section&gt;
+&lt;/main&gt;
+&lt;footer&gt;&lt;span id=&quot;hint&quot;&gt;← → to step · f to fit all · ⇧F full screen · r to reset&lt;/span&gt;&lt;span id=&quot;status&quot;&gt;standalone&lt;/span&gt;&lt;/footer&gt;
+
+&lt;script type=&quot;application/json&quot; id=&quot;spec&quot;&gt;
+{&quot;kind&quot;:&quot;state-explorer&quot;,&quot;question&quot;:&quot;How does a thread move from open to decided?&quot;,&quot;meta&quot;:{&quot;builtBy&quot;:&quot;create-plan&quot;,&quot;builtAt&quot;:&quot;2026-10-28&quot;,&quot;source&quot;:&quot;GH-12 plan&quot;},&quot;diagram&quot;:&quot;stateDiagram-v2\n  [*] --&gt; Open: OpenThread\n  Open --&gt; Open: Reply\n  Open --&gt; Resolved: ResolveThread\n  Resolved --&gt; [*]\n  note right of Resolved: DecisionRecorded&quot;,&quot;steps&quot;:[{&quot;id&quot;:&quot;open&quot;,&quot;caption&quot;:&quot;OpenThread anchors a thread to one block.&quot;,&quot;focus&quot;:[&quot;Open&quot;],&quot;edges&quot;:[&quot;edge0&quot;]},{&quot;id&quot;:&quot;reply&quot;,&quot;caption&quot;:&quot;Each reply is appended. The thread stays open.&quot;,&quot;focus&quot;:[&quot;Open&quot;],&quot;edges&quot;:[&quot;edge1&quot;]},{&quot;id&quot;:&quot;resolve&quot;,&quot;caption&quot;:&quot;ResolveThread moves it to Resolved and records the decision.&quot;,&quot;focus&quot;:[&quot;Resolved&quot;],&quot;edges&quot;:[&quot;edge2&quot;]},{&quot;id&quot;:&quot;twice&quot;,&quot;caption&quot;:&quot;Resolved is the end; the type system rejects a second resolve.&quot;,&quot;focus&quot;:[&quot;Resolved&quot;,&quot;root_end&quot;],&quot;edges&quot;:[&quot;edge3&quot;]}]}
+&lt;/script&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const spec = JSON.parse(document.getElementById(&#39;spec&#39;).textContent);
+  // Embedded in a plan or a doc: size against a fixed reference instead of the frame (which grows to fit us), and report our height.
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add(&#39;embedded&#39;);
+  // Full means real full screen, or the host page expanding our frame to the window when the browser refuses full screen.
+  let expanded = false;
+  const isFull = () =&gt; !!document.fullscreenElement || expanded;
+  const viewH = () =&gt; embedded &amp;&amp; !isFull() ? 760 : innerHeight;
+  const $ = id =&gt; document.getElementById(id);
+  const reduced = matchMedia(&#39;(prefers-reduced-motion: reduce)&#39;).matches;
+  const D = reduced ? 0 : 1;
+  const KIND = { &#39;architecture-map&#39;: &#39;Architecture map&#39;, &#39;state-explorer&#39;: &#39;State explorer&#39;, &#39;event-stream&#39;: &#39;Event stream&#39;, &#39;decision-report&#39;: &#39;Decision report&#39;, &#39;trace-view&#39;: &#39;Trace view&#39; };
+
+  let host = null, participant = null, decision = spec.decision || null;
+  let optionId = spec.options?.[0]?.id ?? null;
+  let stepIndex = 0, mounted = null, svg = null, running = null, camera = null, fitAll = false, full = null;
+
+  const post = msg =&gt; { const m = { ...msg, artifactId: host?.artifactId, blockId: host?.blockId, planId: host?.planId }; if (host &amp;&amp; window.parent !== window) window.parent.postMessage(m, &#39;*&#39;); else console.log(&#39;[viz-explainer]&#39;, m); };
+
+  document.title = spec.question;
+  $(&#39;question&#39;).textContent = spec.question;
+  $(&#39;kind&#39;).textContent = KIND[spec.kind] || spec.kind;
+  $(&#39;by&#39;).textContent = spec.meta?.builtBy || &#39;agent&#39;;
+  $(&#39;at&#39;).textContent = spec.meta?.builtAt || &#39;&#39;;
+
+  const steps = () =&gt; (spec.steps || []).filter(s =&gt; !s.option || s.option === optionId);
+  const diagramText = () =&gt; spec.options ? spec.options.find(o =&gt; o.id === optionId)?.diagram : spec.diagram;
+
+  function mount() {
+    const el = $(&#39;diagram&#39;);
+    mounted?.destroy();
+    el.innerHTML = &#39;&#39;;
+    mounted = pele.mount(el, diagramText(), {
+      idPrefix: (optionId || &#39;d&#39;) + &#39;-&#39;,
+      zoom: false,
+      responsive: false,
+      fontSize: 17,
+      padding: 24,
+      onRender: (r) =&gt; {
+        svg = el.querySelector(&#39;svg&#39;);
+        // The page owns the viewBox from here: Pele lays out at natural size, the camera decides what is on screen.
+        full = [0, 0, r.width, r.height];
+        svg.removeAttribute(&#39;width&#39;); svg.removeAttribute(&#39;height&#39;);
+        svg.setAttribute(&#39;preserveAspectRatio&#39;, &#39;xMidYMid meet&#39;);
+        Object.assign(view, { x: 0, y: 0, w: r.width, h: r.height }); writeView();
+        fitStage();
+        $(&#39;fit&#39;).hidden = fitsWhole();
+        applyStep(stepIndex, false);
+        updateReset();
+      },
+      onError: e =&gt; console.error(&#39;[viz-explainer] diagram error&#39;, e),
+    });
+  }
+
+  function clearFocus() { svg?.querySelectorAll(&#39;.is-focus&#39;).forEach(n =&gt; n.classList.remove(&#39;is-focus&#39;)); }
+
+  // Camera: the union of the focused elements&#39; boxes, in SVG units, with room around it. Never zoom past 1:1 by much,
+  // never tighter than a third of the map, so a single small node does not become a wall of text.
+  function boxOf(elements) {
+    const m = svg.getScreenCTM()?.inverse(); if (!m || !elements.length) return null;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const el of elements) {
+      const r = el.getBoundingClientRect();
+      for (const [cx, cy] of [[r.left, r.top], [r.right, r.bottom]]) { const p = new DOMPoint(cx, cy).matrixTransform(m); x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); }
+    }
+    const stage = $(&#39;diagram&#39;).getBoundingClientRect(); const aspect = stage.width / Math.max(1, stage.height);
+    const pad = 64; let w = x2 - x1 + pad * 2, h = y2 - y1 + pad * 2;
+    // Never zoom past 1.1:1, so labels stay readable instead of billboard-sized.
+    const minW = Math.min(full[2], stage.width / 1.1);
+    if (w &lt; minW) w = minW;
+    if (h &lt; w / aspect) h = w / aspect; else w = h * aspect;
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    // Keep the frame inside the map: a node at the edge shows its neighbours, not empty stage.
+    const clamp = (v, size, total) =&gt; size &gt;= total ? (total - size) / 2 : Math.min(Math.max(v, 0), total - size);
+    const box = [clamp(cx - w / 2, w, full[2]), clamp(cy - h / 2, h, full[3]), w, h];
+    box.raw = Math.max(x2 - x1, (y2 - y1) * aspect);
+    return box;
+  }
+  // The stage takes its height from the diagram&#39;s proportions, with headroom for the camera, so a wide map is not letterboxed.
+  function fitStage() {
+    if (!full) return;
+    const stage = document.querySelector(&#39;.stage&#39;);
+    // Full screen: the stage takes every pixel the heading, caption and controls leave.
+    if (isFull()) { const rest = [&#39;header&#39;, &#39;.rail&#39;, &#39;footer&#39;].reduce((n, q) =&gt; n + (document.querySelector(q)?.offsetHeight ?? 0), 0) + 96; stage.style.height = `${Math.max(320, innerHeight - rest)}px`; return; }
+    // A diagram that fits at natural size gets a stage its own height and no camera. A wider one gets most of the viewport.
+    const h = fitsWhole() ? full[3] + 32 : Math.max(viewH() * 0.56, 420, stage.clientWidth * (full[3] / full[2]));
+    stage.style.height = `${Math.round(Math.min(viewH() * 0.64, Math.max(300, h)))}px`;
+  }
+
+  function fitsWhole() { const stage = document.querySelector(&#39;.stage&#39;); return !!full &amp;&amp; full[2] &lt;= stage.clientWidth * 1.05; }
+
+  // Tween a plain object and write the viewBox each frame: anime does not interpolate a four-number attribute string.
+  const view = { x: 0, y: 0, w: 1, h: 1 };
+  const writeView = () =&gt; svg?.setAttribute(&#39;viewBox&#39;, `${view.x} ${view.y} ${view.w} ${view.h}`);
+  function moveCamera(box, animated) {
+    if (!svg || !box) return;
+    camera?.pause?.();
+    const [x, y, w, h] = box;
+    if (!animated || !D) { Object.assign(view, { x, y, w, h }); writeView(); return; }
+    camera = anime.animate(view, { x, y, w, h, duration: 480, ease: &#39;inOutQuart&#39;, onUpdate: writeView });
+  }
+  $(&#39;fit&#39;).onclick = () =&gt; { fitAll = !fitAll; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, String(fitAll)); applyStep(stepIndex, true); updateReset(); };
+
+  // Reset the view, not the record: step 1, first option, the step&#39;s own frame. A recorded decision is an event and stays.
+  function reset() {
+    fitAll = false; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, &#39;false&#39;);
+    const first = spec.options?.[0]?.id ?? null;
+    if (first &amp;&amp; optionId !== first) {
+      optionId = first; stepIndex = 0;
+      [...$(&#39;tabs&#39;).children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, String(t.dataset.id === first)));
+      mount();
+    } else go(0);
+    history.replaceState(null, &#39;&#39;, location.pathname + location.search);
+    updateReset();
+  }
+  function updateReset() { $(&#39;reset&#39;).disabled = stepIndex === 0 &amp;&amp; !fitAll &amp;&amp; (!spec.options || optionId === spec.options[0].id); }
+  $(&#39;reset&#39;).onclick = reset;
+
+  // Full screen the whole artifact, not just the drawing, so the caption and step controls stay with it.
+  if (!document.fullscreenEnabled &amp;&amp; !embedded) $(&#39;full&#39;).hidden = true;
+  const onFullChange = () =&gt; {
+    document.documentElement.classList.toggle(&#39;is-full&#39;, isFull());
+    $(&#39;full&#39;).setAttribute(&#39;aria-pressed&#39;, String(isFull()));
+    $(&#39;full&#39;).textContent = isFull() ? &#39;exit full screen&#39; : &#39;full screen&#39;;
+    requestAnimationFrame(() =&gt; { fitStage(); applyStep(stepIndex, false); });
+  };
+  $(&#39;full&#39;).onclick = () =&gt; {
+    if (document.fullscreenElement) return document.exitFullscreen();
+    if (expanded) return parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;);
+    // Some browsers and embeds refuse full screen; then ask the host page to expand our frame instead.
+    document.documentElement.requestFullscreen().catch(() =&gt; { if (embedded) parent.postMessage({ fullscreen: &#39;expand&#39; }, &#39;*&#39;); });
+  };
+  document.addEventListener(&#39;fullscreenchange&#39;, onFullChange);
+  addEventListener(&#39;message&#39;, (e) =&gt; { if (e.data &amp;&amp; typeof e.data.expanded === &#39;boolean&#39;) { expanded = e.data.expanded; onFullChange(); } });
+
+  function applyStep(i, animated) {
+    const list = steps();
+    const step = list[i];
+    $(&#39;stepLabel&#39;).textContent = list.length ? `Step ${i + 1} of ${list.length}` : &#39;&#39;;
+    $(&#39;caption&#39;).textContent = step?.caption || &#39;&#39;;
+    $(&#39;evidence&#39;).innerHTML = (step?.evidence || []).map(e =&gt; `&lt;li&gt;${esc(e)}&lt;/li&gt;`).join(&#39;&#39;);
+    $(&#39;prev&#39;).disabled = i &lt;= 0; $(&#39;next&#39;).disabled = i &gt;= list.length - 1;
+    $(&#39;dots&#39;).innerHTML = list.map((_, k) =&gt; `&lt;i class=&quot;${k === i ? &#39;on&#39; : &#39;&#39;}&quot;&gt;&lt;/i&gt;`).join(&#39;&#39;);
+    if (!svg || !step) return;
+    running?.complete?.();
+    clearFocus();
+    const nodes = svg.querySelectorAll(&#39;.pele-node, .pele-cluster&#39;);
+    const edges = svg.querySelectorAll(&#39;.pele-edge, .pele-edge-label&#39;);
+    const focusIds = step.focus || [], edgeIds = step.edges || [];
+    const on = focusIds.map(id =&gt; svg.querySelector(`.pele-node[data-id=&quot;${id}&quot;], .pele-cluster[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    const onEdges = edgeIds.map(id =&gt; svg.querySelector(`.pele-edge[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    // Frame the focus and both ends of every focused edge, so an arrow never points off screen.
+    const ends = edgeIds.flatMap(id =&gt; (/^L_(.+)_(.+)_\d+$/.exec(id) ?? []).slice(1))
+      .map(n =&gt; svg.querySelector(`.pele-node[data-id=&quot;${n}&quot;]`)).filter(Boolean);
+    // Frame what is highlighted. Pull out to an edge&#39;s far end only when that costs little zoom;
+    // otherwise the edge leaves the frame pointing where it goes, and the highlight stays readable.
+    const tight = on.length ? boxOf(on) : null;
+    const wide = boxOf([...on, ...onEdges, ...ends]);
+    const roomy = tight &amp;&amp; wide &amp;&amp; wide.raw &lt;= Math.max(tight.raw * 1.6, ($(&#39;diagram&#39;).clientWidth / 1.1) * 0.9);
+    moveCamera(fitAll || fitsWhole() || !(on.length || onEdges.length) ? full : (tight &amp;&amp; !roomy ? tight : wide), animated);
+    const dim = focusIds.length || edgeIds.length ? 0.3 : 1;
+    const dur = animated ? 180 * D : 0;
+    anime.animate(nodes, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(edges, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(on, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+    on.forEach(n =&gt; n.classList.add(&#39;is-focus&#39;));
+    onEdges.forEach((g, k) =&gt; {
+      g.classList.add(&#39;is-focus&#39;);
+      anime.animate(g, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+      const label = svg.querySelector(`.pele-edge-label[data-id=&quot;${g.dataset.id}&quot;]`); if (label) anime.animate(label, { opacity: 1, duration: dur });
+      const path = g.querySelector(&#39;path&#39;);
+      if (path &amp;&amp; animated &amp;&amp; D) {
+        const [drawable] = anime.svg.createDrawable(path);
+        running = anime.animate(drawable, { draw: [&#39;0 0&#39;, &#39;0 1&#39;], duration: 420, delay: k * 120, ease: &#39;inOutQuad&#39; });
+      }
+    });
+    post({ type: &#39;greenhouse:step&#39;, index: i, id: step.id });
+  }
+
+  function go(i) {
+    const n = steps().length; stepIndex = Math.max(0, Math.min(n - 1, i)); applyStep(stepIndex, true); updateReset();
+    const id = steps()[stepIndex]?.id; if (id) history.replaceState(null, &#39;&#39;, `#${id}`);
+  }
+  // Deep link: index.html#share opens on the step with that id.
+  const fromHash = () =&gt; { const i = steps().findIndex(s =&gt; s.id === decodeURIComponent(location.hash.slice(1))); return i &lt; 0 ? 0 : i; };
+  stepIndex = fromHash();
+  addEventListener(&#39;hashchange&#39;, () =&gt; go(fromHash()));
+  $(&#39;prev&#39;).onclick = () =&gt; go(stepIndex - 1);
+  $(&#39;next&#39;).onclick = () =&gt; go(stepIndex + 1);
+  addEventListener(&#39;keydown&#39;, e =&gt; { if (e.target.tagName === &#39;INPUT&#39;) return; if (e.key === &#39;ArrowRight&#39;) go(stepIndex + 1); if (e.key === &#39;ArrowLeft&#39;) go(stepIndex - 1); if (e.key === &#39;f&#39;) $(&#39;fit&#39;).click(); if (e.key === &#39;F&#39;) $(&#39;full&#39;).click(); if (e.key === &#39;Escape&#39; &amp;&amp; expanded) parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;); if (e.key === &#39;r&#39; || e.key === &#39;Home&#39;) reset(); });
+  addEventListener(&#39;resize&#39;, () =&gt; { fitStage(); applyStep(stepIndex, false); });
+
+  // Options: tabs, comparison, decision
+  if (spec.options?.length) {
+    const tabs = $(&#39;tabs&#39;); tabs.hidden = false;
+    tabs.innerHTML = spec.options.map(o =&gt; `&lt;button role=&quot;tab&quot; data-id=&quot;${esc(o.id)}&quot; aria-selected=&quot;${o.id === optionId}&quot;&gt;${esc(o.label)}&lt;/button&gt;`).join(&#39;&#39;);
+    tabs.onclick = e =&gt; { const b = e.target.closest(&#39;button&#39;); if (!b) return; optionId = b.dataset.id; stepIndex = 0; [...tabs.children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, t === b)); mount(); updateReset(); };
+
+    // The comparison rows are the questions that matter for this decision: `spec.axes` = [{ key, label }], `option.axes[key]` = a short answer.
+    // Without `spec.axes`, the code-change defaults apply.
+    const axes = spec.axes
+      ? spec.axes.map(a =&gt; [esc(a.label), o =&gt; esc(o.axes?.[a.key] ?? &#39;&#39;)])
+      : [[&#39;Call sites touched&#39;, o =&gt; o.axes?.callSites ? `${o.axes.callSites.count}${o.axes.callSites.list?.length ? &#39; · &#39; + o.axes.callSites.list.map(esc).join(&#39;, &#39;) : &#39;&#39;}` : &#39;&#39;], [&#39;Mechanical vs judgement&#39;, o =&gt; esc(o.axes?.mechanical || &#39;&#39;)], [&#39;Silent behaviour changes&#39;, o =&gt; esc(o.axes?.silent || &#39;&#39;)], [&#39;Invariant at risk&#39;, o =&gt; esc(o.axes?.invariant || &#39;&#39;)]];
+    if (spec.options.some(o =&gt; o.axes)) {
+      $(&#39;compare&#39;).hidden = false;
+      $(&#39;compare&#39;).innerHTML = `&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;&lt;/th&gt;${spec.options.map(o =&gt; `&lt;th&gt;${esc(o.label)}&lt;/th&gt;`).join(&#39;&#39;)}&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${axes.map(([name, f]) =&gt; `&lt;tr&gt;&lt;td&gt;${name}&lt;/td&gt;${spec.options.map(o =&gt; `&lt;td&gt;${f(o)}&lt;/td&gt;`).join(&#39;&#39;)}&lt;/tr&gt;`).join(&#39;&#39;)}&lt;/tbody&gt;&lt;/table&gt;`;
+    }
+
+    if (spec.kind === &#39;decision-report&#39;) {
+      $(&#39;decide&#39;).hidden = false;
+      renderOptions();
+    }
+  }
+
+  function renderOptions() {
+    $(&#39;options&#39;).innerHTML = spec.options.map(o =&gt; {
+      const tried = o.tried ? `&lt;span class=&quot;tried&quot;&gt;tried · ${esc(o.tried.kind)} ${o.tried.ref ? (o.tried.href ? `&lt;a href=&quot;${esc(o.tried.href)}&quot;&gt;${esc(o.tried.ref)}&lt;/a&gt;` : esc(o.tried.ref)) : &#39;&#39;}${o.tried.summary ? &#39; · &#39; + esc(o.tried.summary) : &#39;&#39;}&lt;/span&gt;` : `&lt;span class=&quot;tried no&quot;&gt;not explored yet · cannot be chosen&lt;/span&gt;`;
+      const chosen = decision?.optionId === o.id;
+      return `&lt;div class=&quot;option ${chosen ? &#39;chosen&#39; : &#39;&#39;}&quot; data-id=&quot;${esc(o.id)}&quot;&gt;&lt;h3&gt;${esc(o.label)}&lt;/h3&gt;&lt;p&gt;${esc(o.summary || &#39;&#39;)}&lt;/p&gt;${tried}&lt;button ${(!o.tried || decision) ? &#39;disabled&#39; : &#39;&#39;} data-choose=&quot;${esc(o.id)}&quot;&gt;${chosen ? &#39;Chosen&#39; : &#39;Choose&#39;}&lt;/button&gt;&lt;/div&gt;`;
+    }).join(&#39;&#39;);
+    if (decision) { $(&#39;lock&#39;).hidden = false; $(&#39;lock&#39;).textContent = `Decided by ${decision.by?.name || &#39;unknown&#39;} · ${fmt(decision.at)} · ${spec.options.find(o =&gt; o.id === decision.optionId)?.label || decision.optionId}`; }
+  }
+  let pending = null;
+  $(&#39;options&#39;).onclick = e =&gt; {
+    const b = e.target.closest(&#39;button[data-choose]&#39;); if (!b || b.disabled) return;
+    pending = b.dataset.choose;
+    if (participant) return commit();
+    $(&#39;who&#39;).style.display = &#39;flex&#39;; $(&#39;whoName&#39;).focus();
+  };
+  $(&#39;whoOk&#39;).onclick = () =&gt; { const n = $(&#39;whoName&#39;).value.trim(); if (!n) return; participant = { id: null, name: n, kind: &#39;person&#39; }; $(&#39;who&#39;).style.display = &#39;none&#39;; commit(); };
+  function commit() {
+    const o = spec.options.find(x =&gt; x.id === pending); if (!o) return;
+    decision = { optionId: o.id, label: o.label, by: participant, at: new Date().toISOString(), tried: o.tried ? { kind: o.tried.kind, ref: o.tried.ref } : null };
+    post({ type: &#39;greenhouse:decision&#39;, ...decision });
+    renderOptions();
+    $(&#39;status&#39;).textContent = host ? &#39;recorded in plan&#39; : &#39;recorded locally (no host)&#39;;
+  }
+
+  // State-explorer proposals
+  if (spec.proposals) {
+    $(&#39;propose&#39;).hidden = false;
+    $(&#39;pSend&#39;).onclick = () =&gt; { const m = { type: &#39;greenhouse:proposal&#39;, from: $(&#39;pFrom&#39;).value.trim(), to: $(&#39;pTo&#39;).value.trim(), command: $(&#39;pCmd&#39;).value.trim() }; if (!m.from || !m.to || !m.command) return; post(m); $(&#39;pSend&#39;).textContent = &#39;Proposed&#39;; setTimeout(() =&gt; $(&#39;pSend&#39;).textContent = &#39;Propose&#39;, 1500); };
+  }
+
+  // Host protocol
+  addEventListener(&#39;message&#39;, e =&gt; {
+    const m = e.data; if (!m || m.type !== &#39;greenhouse:init&#39;) return;
+    host = m; participant = m.participant || null;
+    if (m.theme) for (const [k, v] of Object.entries(m.theme)) document.documentElement.style.setProperty(k, v);
+    if (m.decision) { decision = m.decision; if (spec.options) renderOptions(); }
+    $(&#39;status&#39;).textContent = `in plan · ${participant?.name || &#39;anonymous&#39;}`;
+  });
+  post({ type: &#39;greenhouse:ready&#39;, kind: spec.kind, question: spec.question });
+  if (embedded) new ResizeObserver(() =&gt; parent.postMessage({ frameHeight: Math.ceil(document.body.getBoundingClientRect().height) }, &#39;*&#39;)).observe(document.body);
+
+  function esc(s) { return String(s).replace(/[&amp;&lt;&gt;&quot;&#39;]/g, c =&gt; ({ &#39;&amp;&#39;: &#39;&amp;amp;&#39;, &#39;&lt;&#39;: &#39;&amp;lt;&#39;, &#39;&gt;&#39;: &#39;&amp;gt;&#39;, &#39;&quot;&#39;: &#39;&amp;quot;&#39;, &quot;&#39;&quot;: &#39;&amp;#39;&#39; }[c])); }
+  // A plain date stays a plain date; only a full timestamp gets a time, so a date never turns into a timezone artifact.
+  function fmt(iso) { if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso; try { return new Date(iso).toLocaleString(undefined, { dateStyle: &#39;medium&#39;, timeStyle: &#39;short&#39; }); } catch { return iso; } }
+
+  mount();
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe></section>
+  <section id="decisions"><h2>Decisions</h2><p class="lede-line">Each real choice in this plan, with the options compared side by side. A decided one is locked on its choice; open “Compare the options” to see why.</p><article class="decision" id="decision-events">
+    <h3>When someone resolves a comment, do we save one record or two?</h3>
+    <p class="chosen">Chosen: <b>Two records</b> · pratos · 2026-10-27</p>
+    <p>Two records keep &quot;the comment is closed&quot; and &quot;this was decided&quot; apart, so the decision log can count decisions on its own. Both were built and their tests passed.</p>
+
+    <details class="report"><summary>Compare the 3 options</summary><iframe class="viz" title="When someone resolves a comment, do we save one record or two?" allow="fullscreen" allowfullscreen srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;When someone resolves a comment, do we save one record or two?&lt;/title&gt;
+&lt;script src=&quot;https://cdn.jsdelivr.net/npm/pele@1.12.0/dist/pele.global.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/animejs/4.5.0/anime.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;style&gt;
+  :root {
+    --bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #cecdc3; --surface: #f2f0e5;
+    --surface-alt: #e6e4d9; --accent: #205ea6; --accent-ink: #ffffff; --ok: #66800b; --warn: #ad8301;
+    --font: ui-sans-serif, system-ui, -apple-system, &quot;Inter&quot;, sans-serif;
+    --mono: ui-monospace, &quot;JetBrains Mono&quot;, &quot;SF Mono&quot;, Menlo, monospace;
+    --radius: 6px; --gutter: 16px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=&quot;light&quot;]) {
+      --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+      --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+    }
+  }
+  :root[data-theme=&quot;dark&quot;] {
+    --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+    --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  header, main, footer { padding: 0 var(--gutter); max-width: 1480px; width: 100%; margin: 0 auto; }
+  header { padding-top: 32px; padding-bottom: 4px; }
+  h1 { margin: 0; font-size: clamp(24px, 2.6vw, 34px); line-height: 1.15; letter-spacing: -.02em; font-weight: 650; text-wrap: balance; max-width: 30ch; }
+  .byline { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .byline b { color: var(--fg); font-weight: 550; }
+  ::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 0; flex-wrap: wrap; }
+  .tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected=&quot;true&quot;] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  main { display: grid; grid-template-columns: 1fr; gap: 18px; padding-top: 20px; padding-bottom: 28px; flex: 1; align-content: start; }
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; height: min(62vh, 760px); min-height: 340px; overflow: hidden; transition: height .24s var(--ease-out); }
+  .stage-controls { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .stage-controls button { font: inherit; font-size: 12.5px; padding: 5px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 999px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .stage-controls button:hover { color: var(--fg); } }
+  .stage-controls button[aria-pressed=&quot;true&quot;] { color: var(--fg); border-color: var(--fg); }
+  .stage-controls button:disabled { opacity: .4; cursor: default; }
+  #diagram { width: 100%; height: 100%; }
+  #diagram svg { width: 100%; height: 100%; display: block; }
+  .rail { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: start; }
+  @media (max-width: 760px) { .rail { grid-template-columns: 1fr; } }
+  .rail-text { max-width: 64ch; }
+  .pele { --pele-bg: transparent; --pele-fg: var(--fg); --pele-muted: var(--muted); --pele-line: var(--fg);
+          --pele-surface: var(--bg); --pele-surface-alt: var(--surface-alt); --pele-border: var(--line);
+          --pele-accent: var(--accent); --pele-font: var(--font); --pele-font-mono: var(--mono); --pele-radius: 4px; }
+  .pele-node, .pele-cluster, .pele-edge, .pele-edge-label { transition: opacity .18s var(--ease-out); }
+  .pele-node.is-focus &gt; :is(rect, path, polygon, ellipse, circle) { stroke: var(--accent); stroke-width: 2.25px; }
+  .pele-cluster.is-focus &gt; rect { stroke: var(--accent); stroke-width: 1.75px; }
+  .pele-edge.is-focus path { stroke: var(--accent); stroke-width: 2px; }
+  .pele-edge.is-focus .pele-marker, .pele-edge.is-focus marker path { fill: var(--accent); stroke: var(--accent); }
+  .step-label { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+  .caption { margin: 0; font-size: clamp(18px, 1.6vw, 22px); line-height: 1.35; font-weight: 500; text-wrap: pretty; }
+  .evidence { list-style: none; margin: 10px 0 0; padding: 0; font: 13px/1.7 var(--mono); color: var(--muted); }
+  .evidence li::before { content: &quot;› &quot;; }
+  .controls { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+  .controls button { font: inherit; font-size: 14px; width: 40px; height: 36px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .controls button:not(:disabled):hover { border-color: var(--fg); } }
+  .controls button:disabled { opacity: .4; cursor: default; }
+  .dots { display: flex; gap: 6px; padding: 0 6px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); display: block; }
+  .dots i.on { background: var(--fg); }
+  .compare { }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .decide { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+  .decide h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .option { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+  .option h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .option p { margin: 0; font-size: 14px; color: var(--muted); }
+  .option .tried { font: 12.5px/1.5 var(--mono); }
+  .option .tried a { color: var(--accent); }
+  .option .tried.no { color: var(--warn); }
+  .option button { align-self: flex-start; font: inherit; font-size: 14px; padding: 7px 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); cursor: pointer; margin-top: 4px; }
+  .option button:disabled { background: var(--surface-alt); color: var(--muted); cursor: not-allowed; }
+  .option.chosen { border-color: var(--ok); }
+  .who { display: none; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .who input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+  .lock { margin: 12px 0 0; font-size: 14px; color: var(--ok); }
+  .propose { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .propose input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); width: 150px; }
+  .propose button { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; }
+  footer { padding-bottom: 20px; font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
+  .embedded body { min-height: 0; }
+  .is-full body { min-height: 100vh; }
+  .is-full header, .is-full main, .is-full footer { max-width: none; }
+  .embedded header { padding-top: 22px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header&gt;
+  &lt;h1 id=&quot;question&quot;&gt;&lt;/h1&gt;
+  &lt;p class=&quot;byline&quot;&gt;&lt;span id=&quot;kind&quot;&gt;&lt;/span&gt;&lt;span&gt;built by &lt;b id=&quot;by&quot;&gt;&lt;/b&gt;&lt;/span&gt;&lt;span id=&quot;at&quot;&gt;&lt;/span&gt;&lt;/p&gt;
+  &lt;nav class=&quot;tabs&quot; id=&quot;tabs&quot; role=&quot;tablist&quot; hidden&gt;&lt;/nav&gt;
+&lt;/header&gt;
+&lt;main&gt;
+  &lt;section class=&quot;stage&quot;&gt;&lt;div id=&quot;diagram&quot;&gt;&lt;/div&gt;&lt;div class=&quot;stage-controls&quot;&gt;&lt;button id=&quot;reset&quot; title=&quot;r&quot; aria-label=&quot;Reset to the first step&quot;&gt;reset&lt;/button&gt;&lt;button id=&quot;fit&quot; aria-pressed=&quot;false&quot; title=&quot;f&quot;&gt;fit all&lt;/button&gt;&lt;button id=&quot;full&quot; aria-pressed=&quot;false&quot; title=&quot;Shift+F&quot;&gt;full screen&lt;/button&gt;&lt;/div&gt;&lt;/section&gt;
+  &lt;section class=&quot;rail&quot;&gt;
+    &lt;div class=&quot;rail-text&quot;&gt;
+      &lt;p class=&quot;step-label&quot; id=&quot;stepLabel&quot;&gt;&lt;/p&gt;
+      &lt;p class=&quot;caption&quot; id=&quot;caption&quot;&gt;&lt;/p&gt;
+      &lt;ul class=&quot;evidence&quot; id=&quot;evidence&quot;&gt;&lt;/ul&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;controls&quot;&gt;
+      &lt;button id=&quot;prev&quot; aria-label=&quot;Previous step&quot;&gt;←&lt;/button&gt;
+      &lt;div class=&quot;dots&quot; id=&quot;dots&quot;&gt;&lt;/div&gt;
+      &lt;button id=&quot;next&quot; aria-label=&quot;Next step&quot;&gt;→&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;compare&quot; id=&quot;compare&quot; hidden&gt;&lt;/section&gt;
+  &lt;section class=&quot;decide&quot; id=&quot;decide&quot; hidden&gt;
+    &lt;h2&gt;Decision&lt;/h2&gt;
+    &lt;div class=&quot;options&quot; id=&quot;options&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;who&quot; id=&quot;who&quot;&gt;&lt;span&gt;Recorded as&lt;/span&gt;&lt;input id=&quot;whoName&quot; placeholder=&quot;your name&quot;&gt;&lt;button id=&quot;whoOk&quot;&gt;Confirm&lt;/button&gt;&lt;/div&gt;
+    &lt;p class=&quot;lock&quot; id=&quot;lock&quot; hidden&gt;&lt;/p&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;propose&quot; id=&quot;propose&quot; hidden&gt;
+    &lt;span&gt;Missing a transition?&lt;/span&gt;
+    &lt;input id=&quot;pFrom&quot; placeholder=&quot;from state&quot;&gt;&lt;input id=&quot;pTo&quot; placeholder=&quot;to state&quot;&gt;&lt;input id=&quot;pCmd&quot; placeholder=&quot;Command name&quot;&gt;
+    &lt;button id=&quot;pSend&quot;&gt;Propose&lt;/button&gt;
+  &lt;/section&gt;
+&lt;/main&gt;
+&lt;footer&gt;&lt;span id=&quot;hint&quot;&gt;← → to step · f to fit all · ⇧F full screen · r to reset&lt;/span&gt;&lt;span id=&quot;status&quot;&gt;standalone&lt;/span&gt;&lt;/footer&gt;
+
+&lt;script type=&quot;application/json&quot; id=&quot;spec&quot;&gt;
+{&quot;kind&quot;:&quot;decision-report&quot;,&quot;question&quot;:&quot;When someone resolves a comment, do we save one record or two?&quot;,&quot;meta&quot;:{&quot;builtBy&quot;:&quot;agent · just explore GH-12&quot;,&quot;builtAt&quot;:&quot;2026-10-27&quot;,&quot;source&quot;:&quot;GH-12 · two explorations&quot;},&quot;options&quot;:[{&quot;id&quot;:&quot;two-events&quot;,&quot;label&quot;:&quot;Two records&quot;,&quot;summary&quot;:&quot;One record says it closed; a second says who decided what.&quot;,&quot;diagram&quot;:&quot;sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P-&gt;&gt;A: ResolveThread(thread-7, \&quot;wrapper\&quot;)\n  A-&gt;&gt;L: ThreadResolved\n  A-&gt;&gt;L: DecisionRecorded\n  L-&gt;&gt;D: project decision&quot;,&quot;tried&quot;:{&quot;kind&quot;:&quot;exploration&quot;,&quot;ref&quot;:&quot;exp_two_events&quot;,&quot;summary&quot;:&quot;expect green, 2 projections touched&quot;},&quot;axes&quot;:{&quot;files&quot;:&quot;4 files&quot;,&quot;closeWithout&quot;:&quot;Allowed&quot;,&quot;risk&quot;:&quot;The log can trail the comment by a moment&quot;,&quot;words&quot;:&quot;Yes&quot;}},{&quot;id&quot;:&quot;one-event&quot;,&quot;label&quot;:&quot;One record&quot;,&quot;summary&quot;:&quot;One record says it closed and what was decided, together.&quot;,&quot;diagram&quot;:&quot;sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P-&gt;&gt;A: ResolveThread(thread-7, \&quot;wrapper\&quot;)\n  A-&gt;&gt;L: ThreadResolved{decision}\n  L-&gt;&gt;D: project decision&quot;,&quot;tried&quot;:{&quot;kind&quot;:&quot;exploration&quot;,&quot;ref&quot;:&quot;exp_one_event&quot;,&quot;summary&quot;:&quot;expect green, 1 projection touched&quot;},&quot;axes&quot;:{&quot;files&quot;:&quot;3 files&quot;,&quot;closeWithout&quot;:&quot;Impossible&quot;,&quot;risk&quot;:&quot;Nothing found&quot;,&quot;words&quot;:&quot;Yes&quot;}},{&quot;id&quot;:&quot;close-only&quot;,&quot;label&quot;:&quot;Close it, record nothing&quot;,&quot;summary&quot;:&quot;It closes and nothing is recorded. What the first attempt wrote.&quot;,&quot;diagram&quot;:&quot;sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  P-&gt;&gt;A: ResolveThread(thread-7)\n  A-&gt;&gt;L: ThreadClosed&quot;,&quot;tried&quot;:null,&quot;axes&quot;:{&quot;files&quot;:&quot;1 file&quot;,&quot;closeWithout&quot;:&quot;Always, no decision kept&quot;,&quot;risk&quot;:&quot;Who decided is lost&quot;,&quot;words&quot;:&quot;No: ThreadClosed is not a word we use&quot;}}],&quot;steps&quot;:[{&quot;id&quot;:&quot;cmd&quot;,&quot;option&quot;:&quot;two-events&quot;,&quot;caption&quot;:&quot;Pratos resolves comment 7 and writes what was decided.&quot;,&quot;edges&quot;:[&quot;i0&quot;],&quot;focus&quot;:[&quot;P&quot;,&quot;A&quot;]},{&quot;id&quot;:&quot;resolved&quot;,&quot;option&quot;:&quot;two-events&quot;,&quot;caption&quot;:&quot;The first record: the comment is resolved.&quot;,&quot;edges&quot;:[&quot;i1&quot;],&quot;focus&quot;:[&quot;L&quot;]},{&quot;id&quot;:&quot;decided&quot;,&quot;option&quot;:&quot;two-events&quot;,&quot;caption&quot;:&quot;The second record: who decided what. It can be left out.&quot;,&quot;edges&quot;:[&quot;i2&quot;],&quot;focus&quot;:[&quot;L&quot;]},{&quot;id&quot;:&quot;proj&quot;,&quot;option&quot;:&quot;two-events&quot;,&quot;caption&quot;:&quot;The decision log reads both records.&quot;,&quot;edges&quot;:[&quot;i3&quot;],&quot;focus&quot;:[&quot;D&quot;]},{&quot;id&quot;:&quot;cmd&quot;,&quot;option&quot;:&quot;one-event&quot;,&quot;caption&quot;:&quot;Pratos does the same thing.&quot;,&quot;edges&quot;:[&quot;i0&quot;],&quot;focus&quot;:[&quot;P&quot;,&quot;A&quot;]},{&quot;id&quot;:&quot;resolved&quot;,&quot;option&quot;:&quot;one-event&quot;,&quot;caption&quot;:&quot;One record holds the resolve and the decision; no decision, no resolve.&quot;,&quot;edges&quot;:[&quot;i1&quot;],&quot;focus&quot;:[&quot;L&quot;]},{&quot;id&quot;:&quot;proj&quot;,&quot;option&quot;:&quot;one-event&quot;,&quot;caption&quot;:&quot;The decision log reads that one record.&quot;,&quot;edges&quot;:[&quot;i2&quot;],&quot;focus&quot;:[&quot;D&quot;]},{&quot;id&quot;:&quot;cmd&quot;,&quot;option&quot;:&quot;close-only&quot;,&quot;caption&quot;:&quot;Every test passes, yet the name is not in our vocabulary.&quot;,&quot;edges&quot;:[&quot;i0&quot;,&quot;i1&quot;],&quot;focus&quot;:[&quot;L&quot;]}],&quot;axes&quot;:[{&quot;key&quot;:&quot;files&quot;,&quot;label&quot;:&quot;Code that changes&quot;},{&quot;key&quot;:&quot;closeWithout&quot;,&quot;label&quot;:&quot;Close without deciding?&quot;},{&quot;key&quot;:&quot;risk&quot;,&quot;label&quot;:&quot;What could go wrong&quot;},{&quot;key&quot;:&quot;words&quot;,&quot;label&quot;:&quot;Matches our vocabulary&quot;}],&quot;decision&quot;:{&quot;optionId&quot;:&quot;two-events&quot;,&quot;label&quot;:&quot;Two records&quot;,&quot;by&quot;:{&quot;name&quot;:&quot;pratos&quot;},&quot;at&quot;:&quot;2026-10-27&quot;}}
+&lt;/script&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const spec = JSON.parse(document.getElementById(&#39;spec&#39;).textContent);
+  // Embedded in a plan or a doc: size against a fixed reference instead of the frame (which grows to fit us), and report our height.
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add(&#39;embedded&#39;);
+  // Full means real full screen, or the host page expanding our frame to the window when the browser refuses full screen.
+  let expanded = false;
+  const isFull = () =&gt; !!document.fullscreenElement || expanded;
+  const viewH = () =&gt; embedded &amp;&amp; !isFull() ? 760 : innerHeight;
+  const $ = id =&gt; document.getElementById(id);
+  const reduced = matchMedia(&#39;(prefers-reduced-motion: reduce)&#39;).matches;
+  const D = reduced ? 0 : 1;
+  const KIND = { &#39;architecture-map&#39;: &#39;Architecture map&#39;, &#39;state-explorer&#39;: &#39;State explorer&#39;, &#39;event-stream&#39;: &#39;Event stream&#39;, &#39;decision-report&#39;: &#39;Decision report&#39;, &#39;trace-view&#39;: &#39;Trace view&#39; };
+
+  let host = null, participant = null, decision = spec.decision || null;
+  let optionId = spec.options?.[0]?.id ?? null;
+  let stepIndex = 0, mounted = null, svg = null, running = null, camera = null, fitAll = false, full = null;
+
+  const post = msg =&gt; { const m = { ...msg, artifactId: host?.artifactId, blockId: host?.blockId, planId: host?.planId }; if (host &amp;&amp; window.parent !== window) window.parent.postMessage(m, &#39;*&#39;); else console.log(&#39;[viz-explainer]&#39;, m); };
+
+  document.title = spec.question;
+  $(&#39;question&#39;).textContent = spec.question;
+  $(&#39;kind&#39;).textContent = KIND[spec.kind] || spec.kind;
+  $(&#39;by&#39;).textContent = spec.meta?.builtBy || &#39;agent&#39;;
+  $(&#39;at&#39;).textContent = spec.meta?.builtAt || &#39;&#39;;
+
+  const steps = () =&gt; (spec.steps || []).filter(s =&gt; !s.option || s.option === optionId);
+  const diagramText = () =&gt; spec.options ? spec.options.find(o =&gt; o.id === optionId)?.diagram : spec.diagram;
+
+  function mount() {
+    const el = $(&#39;diagram&#39;);
+    mounted?.destroy();
+    el.innerHTML = &#39;&#39;;
+    mounted = pele.mount(el, diagramText(), {
+      idPrefix: (optionId || &#39;d&#39;) + &#39;-&#39;,
+      zoom: false,
+      responsive: false,
+      fontSize: 17,
+      padding: 24,
+      onRender: (r) =&gt; {
+        svg = el.querySelector(&#39;svg&#39;);
+        // The page owns the viewBox from here: Pele lays out at natural size, the camera decides what is on screen.
+        full = [0, 0, r.width, r.height];
+        svg.removeAttribute(&#39;width&#39;); svg.removeAttribute(&#39;height&#39;);
+        svg.setAttribute(&#39;preserveAspectRatio&#39;, &#39;xMidYMid meet&#39;);
+        Object.assign(view, { x: 0, y: 0, w: r.width, h: r.height }); writeView();
+        fitStage();
+        $(&#39;fit&#39;).hidden = fitsWhole();
+        applyStep(stepIndex, false);
+        updateReset();
+      },
+      onError: e =&gt; console.error(&#39;[viz-explainer] diagram error&#39;, e),
+    });
+  }
+
+  function clearFocus() { svg?.querySelectorAll(&#39;.is-focus&#39;).forEach(n =&gt; n.classList.remove(&#39;is-focus&#39;)); }
+
+  // Camera: the union of the focused elements&#39; boxes, in SVG units, with room around it. Never zoom past 1:1 by much,
+  // never tighter than a third of the map, so a single small node does not become a wall of text.
+  function boxOf(elements) {
+    const m = svg.getScreenCTM()?.inverse(); if (!m || !elements.length) return null;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const el of elements) {
+      const r = el.getBoundingClientRect();
+      for (const [cx, cy] of [[r.left, r.top], [r.right, r.bottom]]) { const p = new DOMPoint(cx, cy).matrixTransform(m); x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); }
+    }
+    const stage = $(&#39;diagram&#39;).getBoundingClientRect(); const aspect = stage.width / Math.max(1, stage.height);
+    const pad = 64; let w = x2 - x1 + pad * 2, h = y2 - y1 + pad * 2;
+    // Never zoom past 1.1:1, so labels stay readable instead of billboard-sized.
+    const minW = Math.min(full[2], stage.width / 1.1);
+    if (w &lt; minW) w = minW;
+    if (h &lt; w / aspect) h = w / aspect; else w = h * aspect;
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    // Keep the frame inside the map: a node at the edge shows its neighbours, not empty stage.
+    const clamp = (v, size, total) =&gt; size &gt;= total ? (total - size) / 2 : Math.min(Math.max(v, 0), total - size);
+    const box = [clamp(cx - w / 2, w, full[2]), clamp(cy - h / 2, h, full[3]), w, h];
+    box.raw = Math.max(x2 - x1, (y2 - y1) * aspect);
+    return box;
+  }
+  // The stage takes its height from the diagram&#39;s proportions, with headroom for the camera, so a wide map is not letterboxed.
+  function fitStage() {
+    if (!full) return;
+    const stage = document.querySelector(&#39;.stage&#39;);
+    // Full screen: the stage takes every pixel the heading, caption and controls leave.
+    if (isFull()) { const rest = [&#39;header&#39;, &#39;.rail&#39;, &#39;footer&#39;].reduce((n, q) =&gt; n + (document.querySelector(q)?.offsetHeight ?? 0), 0) + 96; stage.style.height = `${Math.max(320, innerHeight - rest)}px`; return; }
+    // A diagram that fits at natural size gets a stage its own height and no camera. A wider one gets most of the viewport.
+    const h = fitsWhole() ? full[3] + 32 : Math.max(viewH() * 0.56, 420, stage.clientWidth * (full[3] / full[2]));
+    stage.style.height = `${Math.round(Math.min(viewH() * 0.64, Math.max(300, h)))}px`;
+  }
+
+  function fitsWhole() { const stage = document.querySelector(&#39;.stage&#39;); return !!full &amp;&amp; full[2] &lt;= stage.clientWidth * 1.05; }
+
+  // Tween a plain object and write the viewBox each frame: anime does not interpolate a four-number attribute string.
+  const view = { x: 0, y: 0, w: 1, h: 1 };
+  const writeView = () =&gt; svg?.setAttribute(&#39;viewBox&#39;, `${view.x} ${view.y} ${view.w} ${view.h}`);
+  function moveCamera(box, animated) {
+    if (!svg || !box) return;
+    camera?.pause?.();
+    const [x, y, w, h] = box;
+    if (!animated || !D) { Object.assign(view, { x, y, w, h }); writeView(); return; }
+    camera = anime.animate(view, { x, y, w, h, duration: 480, ease: &#39;inOutQuart&#39;, onUpdate: writeView });
+  }
+  $(&#39;fit&#39;).onclick = () =&gt; { fitAll = !fitAll; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, String(fitAll)); applyStep(stepIndex, true); updateReset(); };
+
+  // Reset the view, not the record: step 1, first option, the step&#39;s own frame. A recorded decision is an event and stays.
+  function reset() {
+    fitAll = false; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, &#39;false&#39;);
+    const first = spec.options?.[0]?.id ?? null;
+    if (first &amp;&amp; optionId !== first) {
+      optionId = first; stepIndex = 0;
+      [...$(&#39;tabs&#39;).children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, String(t.dataset.id === first)));
+      mount();
+    } else go(0);
+    history.replaceState(null, &#39;&#39;, location.pathname + location.search);
+    updateReset();
+  }
+  function updateReset() { $(&#39;reset&#39;).disabled = stepIndex === 0 &amp;&amp; !fitAll &amp;&amp; (!spec.options || optionId === spec.options[0].id); }
+  $(&#39;reset&#39;).onclick = reset;
+
+  // Full screen the whole artifact, not just the drawing, so the caption and step controls stay with it.
+  if (!document.fullscreenEnabled &amp;&amp; !embedded) $(&#39;full&#39;).hidden = true;
+  const onFullChange = () =&gt; {
+    document.documentElement.classList.toggle(&#39;is-full&#39;, isFull());
+    $(&#39;full&#39;).setAttribute(&#39;aria-pressed&#39;, String(isFull()));
+    $(&#39;full&#39;).textContent = isFull() ? &#39;exit full screen&#39; : &#39;full screen&#39;;
+    requestAnimationFrame(() =&gt; { fitStage(); applyStep(stepIndex, false); });
+  };
+  $(&#39;full&#39;).onclick = () =&gt; {
+    if (document.fullscreenElement) return document.exitFullscreen();
+    if (expanded) return parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;);
+    // Some browsers and embeds refuse full screen; then ask the host page to expand our frame instead.
+    document.documentElement.requestFullscreen().catch(() =&gt; { if (embedded) parent.postMessage({ fullscreen: &#39;expand&#39; }, &#39;*&#39;); });
+  };
+  document.addEventListener(&#39;fullscreenchange&#39;, onFullChange);
+  addEventListener(&#39;message&#39;, (e) =&gt; { if (e.data &amp;&amp; typeof e.data.expanded === &#39;boolean&#39;) { expanded = e.data.expanded; onFullChange(); } });
+
+  function applyStep(i, animated) {
+    const list = steps();
+    const step = list[i];
+    $(&#39;stepLabel&#39;).textContent = list.length ? `Step ${i + 1} of ${list.length}` : &#39;&#39;;
+    $(&#39;caption&#39;).textContent = step?.caption || &#39;&#39;;
+    $(&#39;evidence&#39;).innerHTML = (step?.evidence || []).map(e =&gt; `&lt;li&gt;${esc(e)}&lt;/li&gt;`).join(&#39;&#39;);
+    $(&#39;prev&#39;).disabled = i &lt;= 0; $(&#39;next&#39;).disabled = i &gt;= list.length - 1;
+    $(&#39;dots&#39;).innerHTML = list.map((_, k) =&gt; `&lt;i class=&quot;${k === i ? &#39;on&#39; : &#39;&#39;}&quot;&gt;&lt;/i&gt;`).join(&#39;&#39;);
+    if (!svg || !step) return;
+    running?.complete?.();
+    clearFocus();
+    const nodes = svg.querySelectorAll(&#39;.pele-node, .pele-cluster&#39;);
+    const edges = svg.querySelectorAll(&#39;.pele-edge, .pele-edge-label&#39;);
+    const focusIds = step.focus || [], edgeIds = step.edges || [];
+    const on = focusIds.map(id =&gt; svg.querySelector(`.pele-node[data-id=&quot;${id}&quot;], .pele-cluster[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    const onEdges = edgeIds.map(id =&gt; svg.querySelector(`.pele-edge[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    // Frame the focus and both ends of every focused edge, so an arrow never points off screen.
+    const ends = edgeIds.flatMap(id =&gt; (/^L_(.+)_(.+)_\d+$/.exec(id) ?? []).slice(1))
+      .map(n =&gt; svg.querySelector(`.pele-node[data-id=&quot;${n}&quot;]`)).filter(Boolean);
+    // Frame what is highlighted. Pull out to an edge&#39;s far end only when that costs little zoom;
+    // otherwise the edge leaves the frame pointing where it goes, and the highlight stays readable.
+    const tight = on.length ? boxOf(on) : null;
+    const wide = boxOf([...on, ...onEdges, ...ends]);
+    const roomy = tight &amp;&amp; wide &amp;&amp; wide.raw &lt;= Math.max(tight.raw * 1.6, ($(&#39;diagram&#39;).clientWidth / 1.1) * 0.9);
+    moveCamera(fitAll || fitsWhole() || !(on.length || onEdges.length) ? full : (tight &amp;&amp; !roomy ? tight : wide), animated);
+    const dim = focusIds.length || edgeIds.length ? 0.3 : 1;
+    const dur = animated ? 180 * D : 0;
+    anime.animate(nodes, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(edges, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(on, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+    on.forEach(n =&gt; n.classList.add(&#39;is-focus&#39;));
+    onEdges.forEach((g, k) =&gt; {
+      g.classList.add(&#39;is-focus&#39;);
+      anime.animate(g, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+      const label = svg.querySelector(`.pele-edge-label[data-id=&quot;${g.dataset.id}&quot;]`); if (label) anime.animate(label, { opacity: 1, duration: dur });
+      const path = g.querySelector(&#39;path&#39;);
+      if (path &amp;&amp; animated &amp;&amp; D) {
+        const [drawable] = anime.svg.createDrawable(path);
+        running = anime.animate(drawable, { draw: [&#39;0 0&#39;, &#39;0 1&#39;], duration: 420, delay: k * 120, ease: &#39;inOutQuad&#39; });
+      }
+    });
+    post({ type: &#39;greenhouse:step&#39;, index: i, id: step.id });
+  }
+
+  function go(i) {
+    const n = steps().length; stepIndex = Math.max(0, Math.min(n - 1, i)); applyStep(stepIndex, true); updateReset();
+    const id = steps()[stepIndex]?.id; if (id) history.replaceState(null, &#39;&#39;, `#${id}`);
+  }
+  // Deep link: index.html#share opens on the step with that id.
+  const fromHash = () =&gt; { const i = steps().findIndex(s =&gt; s.id === decodeURIComponent(location.hash.slice(1))); return i &lt; 0 ? 0 : i; };
+  stepIndex = fromHash();
+  addEventListener(&#39;hashchange&#39;, () =&gt; go(fromHash()));
+  $(&#39;prev&#39;).onclick = () =&gt; go(stepIndex - 1);
+  $(&#39;next&#39;).onclick = () =&gt; go(stepIndex + 1);
+  addEventListener(&#39;keydown&#39;, e =&gt; { if (e.target.tagName === &#39;INPUT&#39;) return; if (e.key === &#39;ArrowRight&#39;) go(stepIndex + 1); if (e.key === &#39;ArrowLeft&#39;) go(stepIndex - 1); if (e.key === &#39;f&#39;) $(&#39;fit&#39;).click(); if (e.key === &#39;F&#39;) $(&#39;full&#39;).click(); if (e.key === &#39;Escape&#39; &amp;&amp; expanded) parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;); if (e.key === &#39;r&#39; || e.key === &#39;Home&#39;) reset(); });
+  addEventListener(&#39;resize&#39;, () =&gt; { fitStage(); applyStep(stepIndex, false); });
+
+  // Options: tabs, comparison, decision
+  if (spec.options?.length) {
+    const tabs = $(&#39;tabs&#39;); tabs.hidden = false;
+    tabs.innerHTML = spec.options.map(o =&gt; `&lt;button role=&quot;tab&quot; data-id=&quot;${esc(o.id)}&quot; aria-selected=&quot;${o.id === optionId}&quot;&gt;${esc(o.label)}&lt;/button&gt;`).join(&#39;&#39;);
+    tabs.onclick = e =&gt; { const b = e.target.closest(&#39;button&#39;); if (!b) return; optionId = b.dataset.id; stepIndex = 0; [...tabs.children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, t === b)); mount(); updateReset(); };
+
+    // The comparison rows are the questions that matter for this decision: `spec.axes` = [{ key, label }], `option.axes[key]` = a short answer.
+    // Without `spec.axes`, the code-change defaults apply.
+    const axes = spec.axes
+      ? spec.axes.map(a =&gt; [esc(a.label), o =&gt; esc(o.axes?.[a.key] ?? &#39;&#39;)])
+      : [[&#39;Call sites touched&#39;, o =&gt; o.axes?.callSites ? `${o.axes.callSites.count}${o.axes.callSites.list?.length ? &#39; · &#39; + o.axes.callSites.list.map(esc).join(&#39;, &#39;) : &#39;&#39;}` : &#39;&#39;], [&#39;Mechanical vs judgement&#39;, o =&gt; esc(o.axes?.mechanical || &#39;&#39;)], [&#39;Silent behaviour changes&#39;, o =&gt; esc(o.axes?.silent || &#39;&#39;)], [&#39;Invariant at risk&#39;, o =&gt; esc(o.axes?.invariant || &#39;&#39;)]];
+    if (spec.options.some(o =&gt; o.axes)) {
+      $(&#39;compare&#39;).hidden = false;
+      $(&#39;compare&#39;).innerHTML = `&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;&lt;/th&gt;${spec.options.map(o =&gt; `&lt;th&gt;${esc(o.label)}&lt;/th&gt;`).join(&#39;&#39;)}&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${axes.map(([name, f]) =&gt; `&lt;tr&gt;&lt;td&gt;${name}&lt;/td&gt;${spec.options.map(o =&gt; `&lt;td&gt;${f(o)}&lt;/td&gt;`).join(&#39;&#39;)}&lt;/tr&gt;`).join(&#39;&#39;)}&lt;/tbody&gt;&lt;/table&gt;`;
+    }
+
+    if (spec.kind === &#39;decision-report&#39;) {
+      $(&#39;decide&#39;).hidden = false;
+      renderOptions();
+    }
+  }
+
+  function renderOptions() {
+    $(&#39;options&#39;).innerHTML = spec.options.map(o =&gt; {
+      const tried = o.tried ? `&lt;span class=&quot;tried&quot;&gt;tried · ${esc(o.tried.kind)} ${o.tried.ref ? (o.tried.href ? `&lt;a href=&quot;${esc(o.tried.href)}&quot;&gt;${esc(o.tried.ref)}&lt;/a&gt;` : esc(o.tried.ref)) : &#39;&#39;}${o.tried.summary ? &#39; · &#39; + esc(o.tried.summary) : &#39;&#39;}&lt;/span&gt;` : `&lt;span class=&quot;tried no&quot;&gt;not explored yet · cannot be chosen&lt;/span&gt;`;
+      const chosen = decision?.optionId === o.id;
+      return `&lt;div class=&quot;option ${chosen ? &#39;chosen&#39; : &#39;&#39;}&quot; data-id=&quot;${esc(o.id)}&quot;&gt;&lt;h3&gt;${esc(o.label)}&lt;/h3&gt;&lt;p&gt;${esc(o.summary || &#39;&#39;)}&lt;/p&gt;${tried}&lt;button ${(!o.tried || decision) ? &#39;disabled&#39; : &#39;&#39;} data-choose=&quot;${esc(o.id)}&quot;&gt;${chosen ? &#39;Chosen&#39; : &#39;Choose&#39;}&lt;/button&gt;&lt;/div&gt;`;
+    }).join(&#39;&#39;);
+    if (decision) { $(&#39;lock&#39;).hidden = false; $(&#39;lock&#39;).textContent = `Decided by ${decision.by?.name || &#39;unknown&#39;} · ${fmt(decision.at)} · ${spec.options.find(o =&gt; o.id === decision.optionId)?.label || decision.optionId}`; }
+  }
+  let pending = null;
+  $(&#39;options&#39;).onclick = e =&gt; {
+    const b = e.target.closest(&#39;button[data-choose]&#39;); if (!b || b.disabled) return;
+    pending = b.dataset.choose;
+    if (participant) return commit();
+    $(&#39;who&#39;).style.display = &#39;flex&#39;; $(&#39;whoName&#39;).focus();
+  };
+  $(&#39;whoOk&#39;).onclick = () =&gt; { const n = $(&#39;whoName&#39;).value.trim(); if (!n) return; participant = { id: null, name: n, kind: &#39;person&#39; }; $(&#39;who&#39;).style.display = &#39;none&#39;; commit(); };
+  function commit() {
+    const o = spec.options.find(x =&gt; x.id === pending); if (!o) return;
+    decision = { optionId: o.id, label: o.label, by: participant, at: new Date().toISOString(), tried: o.tried ? { kind: o.tried.kind, ref: o.tried.ref } : null };
+    post({ type: &#39;greenhouse:decision&#39;, ...decision });
+    renderOptions();
+    $(&#39;status&#39;).textContent = host ? &#39;recorded in plan&#39; : &#39;recorded locally (no host)&#39;;
+  }
+
+  // State-explorer proposals
+  if (spec.proposals) {
+    $(&#39;propose&#39;).hidden = false;
+    $(&#39;pSend&#39;).onclick = () =&gt; { const m = { type: &#39;greenhouse:proposal&#39;, from: $(&#39;pFrom&#39;).value.trim(), to: $(&#39;pTo&#39;).value.trim(), command: $(&#39;pCmd&#39;).value.trim() }; if (!m.from || !m.to || !m.command) return; post(m); $(&#39;pSend&#39;).textContent = &#39;Proposed&#39;; setTimeout(() =&gt; $(&#39;pSend&#39;).textContent = &#39;Propose&#39;, 1500); };
+  }
+
+  // Host protocol
+  addEventListener(&#39;message&#39;, e =&gt; {
+    const m = e.data; if (!m || m.type !== &#39;greenhouse:init&#39;) return;
+    host = m; participant = m.participant || null;
+    if (m.theme) for (const [k, v] of Object.entries(m.theme)) document.documentElement.style.setProperty(k, v);
+    if (m.decision) { decision = m.decision; if (spec.options) renderOptions(); }
+    $(&#39;status&#39;).textContent = `in plan · ${participant?.name || &#39;anonymous&#39;}`;
+  });
+  post({ type: &#39;greenhouse:ready&#39;, kind: spec.kind, question: spec.question });
+  if (embedded) new ResizeObserver(() =&gt; parent.postMessage({ frameHeight: Math.ceil(document.body.getBoundingClientRect().height) }, &#39;*&#39;)).observe(document.body);
+
+  function esc(s) { return String(s).replace(/[&amp;&lt;&gt;&quot;&#39;]/g, c =&gt; ({ &#39;&amp;&#39;: &#39;&amp;amp;&#39;, &#39;&lt;&#39;: &#39;&amp;lt;&#39;, &#39;&gt;&#39;: &#39;&amp;gt;&#39;, &#39;&quot;&#39;: &#39;&amp;quot;&#39;, &quot;&#39;&quot;: &#39;&amp;#39;&#39; }[c])); }
+  // A plain date stays a plain date; only a full timestamp gets a time, so a date never turns into a timezone artifact.
+  function fmt(iso) { if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso; try { return new Date(iso).toLocaleString(undefined, { dateStyle: &#39;medium&#39;, timeStyle: &#39;short&#39; }); } catch { return iso; } }
+
+  mount();
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe></details>
+  </article></section>
+  <section id="design"><h2>Design language</h2><p class="lede-line">The look this plan’s screens use: tokens first, then each component rendered live in every state it can be in.</p><p>The plan page is a working surface, read often and quickly. Quiet surfaces, one accent for the action, green only for something decided.</p>
+
+    <h3>Colour</h3><div class="swatches"><div class="swatch"><span style="background:#fffcf0"></span><b>bg</b><code>#fffcf0</code></div><div class="swatch"><span style="background:#100f0f"></span><b>fg</b><code>#100f0f</code></div><div class="swatch"><span style="background:#6f6e69"></span><b>muted</b><code>#6f6e69</code></div><div class="swatch"><span style="background:#dad8ce"></span><b>line</b><code>#dad8ce</code></div><div class="swatch"><span style="background:#f2f0e5"></span><b>surface</b><code>#f2f0e5</code></div><div class="swatch"><span style="background:#205ea6"></span><b>accent</b><code>#205ea6</code></div><div class="swatch"><span style="background:#66800b"></span><b>ok</b><code>#66800b</code></div><div class="swatch"><span style="background:#ad8301"></span><b>warn</b><code>#ad8301</code></div></div>
+    <h3>Type</h3><div class="type"><div class="type-row"><span class="type-meta">title · 28/1.15 · 650</span><span style="font-family:ui-sans-serif, system-ui, -apple-system, Inter, sans-serif;font-size:28px;font-weight:650;line-height:1.15">Plan GH-12</span></div><div class="type-row"><span class="type-meta">body · 16/1.5 · 400</span><span style="font-family:ui-sans-serif, system-ui, -apple-system, Inter, sans-serif;font-size:16px;font-weight:400;line-height:1.5">Should retries live in the client or the wrapper?</span></div><div class="type-row"><span class="type-meta">meta · 12/1.4 · 500</span><span style="font-family:ui-sans-serif, system-ui, -apple-system, Inter, sans-serif;font-size:12px;font-weight:500;line-height:1.4">block b3 · 2 replies</span></div></div>
+    <h3>Space</h3><div class="space"><div class="space-row"><span class="bar" style="width:8px"></span><code>4px</code></div><div class="space-row"><span class="bar" style="width:16px"></span><code>8px</code></div><div class="space-row"><span class="bar" style="width:24px"></span><code>12px</code></div><div class="space-row"><span class="bar" style="width:32px"></span><code>16px</code></div><div class="space-row"><span class="bar" style="width:48px"></span><code>24px</code></div><div class="space-row"><span class="bar" style="width:64px"></span><code>32px</code></div></div>
+    <h3>Radius</h3><div class="radii"><div class="radius"><span style="border-radius:8px"></span><code>md 8</code></div><div class="radius"><span style="border-radius:12px"></span><code>lg 12</code></div></div>
+    
+  </section>
+  <section class="phase" id="domain">
+    <header class="phase-head"><h2><span class="phase-num">Phase 1</span> Domain: resolve records two facts</h2><span class="pill pill-done">done · 3/3</span></header>
+    <p>The thread decider accepts <code>ResolveThread</code> and returns <code>ThreadResolved</code> then <code>DecisionRecorded</code>. Resolving twice is refused by the state type, not by a check.</p>
+
+    <iframe class="viz" title="How does a thread move from open to decided?" allow="fullscreen" allowfullscreen srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;How does a thread move from open to decided?&lt;/title&gt;
+&lt;script src=&quot;https://cdn.jsdelivr.net/npm/pele@1.12.0/dist/pele.global.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/animejs/4.5.0/anime.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;style&gt;
+  :root {
+    --bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #cecdc3; --surface: #f2f0e5;
+    --surface-alt: #e6e4d9; --accent: #205ea6; --accent-ink: #ffffff; --ok: #66800b; --warn: #ad8301;
+    --font: ui-sans-serif, system-ui, -apple-system, &quot;Inter&quot;, sans-serif;
+    --mono: ui-monospace, &quot;JetBrains Mono&quot;, &quot;SF Mono&quot;, Menlo, monospace;
+    --radius: 6px; --gutter: 16px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=&quot;light&quot;]) {
+      --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+      --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+    }
+  }
+  :root[data-theme=&quot;dark&quot;] {
+    --bg: #100f0f; --fg: #cecdc3; --muted: #878580; --line: #403e3c; --surface: #1c1b1a;
+    --surface-alt: #282726; --accent: #4385be; --accent-ink: #100f0f; --ok: #879a39; --warn: #d0a215;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  header, main, footer { padding: 0 var(--gutter); max-width: 1480px; width: 100%; margin: 0 auto; }
+  header { padding-top: 32px; padding-bottom: 4px; }
+  h1 { margin: 0; font-size: clamp(24px, 2.6vw, 34px); line-height: 1.15; letter-spacing: -.02em; font-weight: 650; text-wrap: balance; max-width: 30ch; }
+  .byline { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .byline b { color: var(--fg); font-weight: 550; }
+  ::selection { background: color-mix(in oklab, var(--accent) 28%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 0; flex-wrap: wrap; }
+  .tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected=&quot;true&quot;] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  main { display: grid; grid-template-columns: 1fr; gap: 18px; padding-top: 20px; padding-bottom: 28px; flex: 1; align-content: start; }
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; height: min(62vh, 760px); min-height: 340px; overflow: hidden; transition: height .24s var(--ease-out); }
+  .stage-controls { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+  .stage-controls button { font: inherit; font-size: 12.5px; padding: 5px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 999px; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .stage-controls button:hover { color: var(--fg); } }
+  .stage-controls button[aria-pressed=&quot;true&quot;] { color: var(--fg); border-color: var(--fg); }
+  .stage-controls button:disabled { opacity: .4; cursor: default; }
+  #diagram { width: 100%; height: 100%; }
+  #diagram svg { width: 100%; height: 100%; display: block; }
+  .rail { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 40px; align-items: start; }
+  @media (max-width: 760px) { .rail { grid-template-columns: 1fr; } }
+  .rail-text { max-width: 64ch; }
+  .pele { --pele-bg: transparent; --pele-fg: var(--fg); --pele-muted: var(--muted); --pele-line: var(--fg);
+          --pele-surface: var(--bg); --pele-surface-alt: var(--surface-alt); --pele-border: var(--line);
+          --pele-accent: var(--accent); --pele-font: var(--font); --pele-font-mono: var(--mono); --pele-radius: 4px; }
+  .pele-node, .pele-cluster, .pele-edge, .pele-edge-label { transition: opacity .18s var(--ease-out); }
+  .pele-node.is-focus &gt; :is(rect, path, polygon, ellipse, circle) { stroke: var(--accent); stroke-width: 2.25px; }
+  .pele-cluster.is-focus &gt; rect { stroke: var(--accent); stroke-width: 1.75px; }
+  .pele-edge.is-focus path { stroke: var(--accent); stroke-width: 2px; }
+  .pele-edge.is-focus .pele-marker, .pele-edge.is-focus marker path { fill: var(--accent); stroke: var(--accent); }
+  .step-label { font-size: 12.5px; color: var(--muted); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+  .caption { margin: 0; font-size: clamp(18px, 1.6vw, 22px); line-height: 1.35; font-weight: 500; text-wrap: pretty; }
+  .evidence { list-style: none; margin: 10px 0 0; padding: 0; font: 13px/1.7 var(--mono); color: var(--muted); }
+  .evidence li::before { content: &quot;› &quot;; }
+  .controls { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+  .controls button { font: inherit; font-size: 14px; width: 40px; height: 36px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  @media (hover: hover) and (pointer: fine) { .controls button:not(:disabled):hover { border-color: var(--fg); } }
+  .controls button:disabled { opacity: .4; cursor: default; }
+  .dots { display: flex; gap: 6px; padding: 0 6px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); display: block; }
+  .dots i.on { background: var(--fg); }
+  .compare { }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .decide { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--surface); }
+  .decide h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .option { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+  .option h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .option p { margin: 0; font-size: 14px; color: var(--muted); }
+  .option .tried { font: 12.5px/1.5 var(--mono); }
+  .option .tried a { color: var(--accent); }
+  .option .tried.no { color: var(--warn); }
+  .option button { align-self: flex-start; font: inherit; font-size: 14px; padding: 7px 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); cursor: pointer; margin-top: 4px; }
+  .option button:disabled { background: var(--surface-alt); color: var(--muted); cursor: not-allowed; }
+  .option.chosen { border-color: var(--ok); }
+  .who { display: none; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .who input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); }
+  .lock { margin: 12px 0 0; font-size: 14px; color: var(--ok); }
+  .propose { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .propose input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); width: 150px; }
+  .propose button { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: var(--radius); cursor: pointer; }
+  footer { padding-bottom: 20px; font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
+  .embedded body { min-height: 0; }
+  .is-full body { min-height: 100vh; }
+  .is-full header, .is-full main, .is-full footer { max-width: none; }
+  .embedded header { padding-top: 22px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header&gt;
+  &lt;h1 id=&quot;question&quot;&gt;&lt;/h1&gt;
+  &lt;p class=&quot;byline&quot;&gt;&lt;span id=&quot;kind&quot;&gt;&lt;/span&gt;&lt;span&gt;built by &lt;b id=&quot;by&quot;&gt;&lt;/b&gt;&lt;/span&gt;&lt;span id=&quot;at&quot;&gt;&lt;/span&gt;&lt;/p&gt;
+  &lt;nav class=&quot;tabs&quot; id=&quot;tabs&quot; role=&quot;tablist&quot; hidden&gt;&lt;/nav&gt;
+&lt;/header&gt;
+&lt;main&gt;
+  &lt;section class=&quot;stage&quot;&gt;&lt;div id=&quot;diagram&quot;&gt;&lt;/div&gt;&lt;div class=&quot;stage-controls&quot;&gt;&lt;button id=&quot;reset&quot; title=&quot;r&quot; aria-label=&quot;Reset to the first step&quot;&gt;reset&lt;/button&gt;&lt;button id=&quot;fit&quot; aria-pressed=&quot;false&quot; title=&quot;f&quot;&gt;fit all&lt;/button&gt;&lt;button id=&quot;full&quot; aria-pressed=&quot;false&quot; title=&quot;Shift+F&quot;&gt;full screen&lt;/button&gt;&lt;/div&gt;&lt;/section&gt;
+  &lt;section class=&quot;rail&quot;&gt;
+    &lt;div class=&quot;rail-text&quot;&gt;
+      &lt;p class=&quot;step-label&quot; id=&quot;stepLabel&quot;&gt;&lt;/p&gt;
+      &lt;p class=&quot;caption&quot; id=&quot;caption&quot;&gt;&lt;/p&gt;
+      &lt;ul class=&quot;evidence&quot; id=&quot;evidence&quot;&gt;&lt;/ul&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;controls&quot;&gt;
+      &lt;button id=&quot;prev&quot; aria-label=&quot;Previous step&quot;&gt;←&lt;/button&gt;
+      &lt;div class=&quot;dots&quot; id=&quot;dots&quot;&gt;&lt;/div&gt;
+      &lt;button id=&quot;next&quot; aria-label=&quot;Next step&quot;&gt;→&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;compare&quot; id=&quot;compare&quot; hidden&gt;&lt;/section&gt;
+  &lt;section class=&quot;decide&quot; id=&quot;decide&quot; hidden&gt;
+    &lt;h2&gt;Decision&lt;/h2&gt;
+    &lt;div class=&quot;options&quot; id=&quot;options&quot;&gt;&lt;/div&gt;
+    &lt;div class=&quot;who&quot; id=&quot;who&quot;&gt;&lt;span&gt;Recorded as&lt;/span&gt;&lt;input id=&quot;whoName&quot; placeholder=&quot;your name&quot;&gt;&lt;button id=&quot;whoOk&quot;&gt;Confirm&lt;/button&gt;&lt;/div&gt;
+    &lt;p class=&quot;lock&quot; id=&quot;lock&quot; hidden&gt;&lt;/p&gt;
+  &lt;/section&gt;
+  &lt;section class=&quot;propose&quot; id=&quot;propose&quot; hidden&gt;
+    &lt;span&gt;Missing a transition?&lt;/span&gt;
+    &lt;input id=&quot;pFrom&quot; placeholder=&quot;from state&quot;&gt;&lt;input id=&quot;pTo&quot; placeholder=&quot;to state&quot;&gt;&lt;input id=&quot;pCmd&quot; placeholder=&quot;Command name&quot;&gt;
+    &lt;button id=&quot;pSend&quot;&gt;Propose&lt;/button&gt;
+  &lt;/section&gt;
+&lt;/main&gt;
+&lt;footer&gt;&lt;span id=&quot;hint&quot;&gt;← → to step · f to fit all · ⇧F full screen · r to reset&lt;/span&gt;&lt;span id=&quot;status&quot;&gt;standalone&lt;/span&gt;&lt;/footer&gt;
+
+&lt;script type=&quot;application/json&quot; id=&quot;spec&quot;&gt;
+{&quot;kind&quot;:&quot;state-explorer&quot;,&quot;question&quot;:&quot;How does a thread move from open to decided?&quot;,&quot;meta&quot;:{&quot;builtBy&quot;:&quot;create-plan&quot;,&quot;builtAt&quot;:&quot;2026-10-28&quot;,&quot;source&quot;:&quot;GH-12 plan&quot;},&quot;diagram&quot;:&quot;stateDiagram-v2\n  [*] --&gt; Open: OpenThread\n  Open --&gt; Open: Reply\n  Open --&gt; Resolved: ResolveThread\n  Resolved --&gt; [*]\n  note right of Resolved: DecisionRecorded&quot;,&quot;steps&quot;:[{&quot;id&quot;:&quot;open&quot;,&quot;caption&quot;:&quot;OpenThread anchors a thread to one block.&quot;,&quot;focus&quot;:[&quot;Open&quot;],&quot;edges&quot;:[&quot;edge0&quot;]},{&quot;id&quot;:&quot;reply&quot;,&quot;caption&quot;:&quot;Each reply is appended. The thread stays open.&quot;,&quot;focus&quot;:[&quot;Open&quot;],&quot;edges&quot;:[&quot;edge1&quot;]},{&quot;id&quot;:&quot;resolve&quot;,&quot;caption&quot;:&quot;ResolveThread moves it to Resolved and records the decision.&quot;,&quot;focus&quot;:[&quot;Resolved&quot;],&quot;edges&quot;:[&quot;edge2&quot;]},{&quot;id&quot;:&quot;twice&quot;,&quot;caption&quot;:&quot;Resolved is the end; the type system rejects a second resolve.&quot;,&quot;focus&quot;:[&quot;Resolved&quot;,&quot;root_end&quot;],&quot;edges&quot;:[&quot;edge3&quot;]}]}
+&lt;/script&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const spec = JSON.parse(document.getElementById(&#39;spec&#39;).textContent);
+  // Embedded in a plan or a doc: size against a fixed reference instead of the frame (which grows to fit us), and report our height.
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add(&#39;embedded&#39;);
+  // Full means real full screen, or the host page expanding our frame to the window when the browser refuses full screen.
+  let expanded = false;
+  const isFull = () =&gt; !!document.fullscreenElement || expanded;
+  const viewH = () =&gt; embedded &amp;&amp; !isFull() ? 760 : innerHeight;
+  const $ = id =&gt; document.getElementById(id);
+  const reduced = matchMedia(&#39;(prefers-reduced-motion: reduce)&#39;).matches;
+  const D = reduced ? 0 : 1;
+  const KIND = { &#39;architecture-map&#39;: &#39;Architecture map&#39;, &#39;state-explorer&#39;: &#39;State explorer&#39;, &#39;event-stream&#39;: &#39;Event stream&#39;, &#39;decision-report&#39;: &#39;Decision report&#39;, &#39;trace-view&#39;: &#39;Trace view&#39; };
+
+  let host = null, participant = null, decision = spec.decision || null;
+  let optionId = spec.options?.[0]?.id ?? null;
+  let stepIndex = 0, mounted = null, svg = null, running = null, camera = null, fitAll = false, full = null;
+
+  const post = msg =&gt; { const m = { ...msg, artifactId: host?.artifactId, blockId: host?.blockId, planId: host?.planId }; if (host &amp;&amp; window.parent !== window) window.parent.postMessage(m, &#39;*&#39;); else console.log(&#39;[viz-explainer]&#39;, m); };
+
+  document.title = spec.question;
+  $(&#39;question&#39;).textContent = spec.question;
+  $(&#39;kind&#39;).textContent = KIND[spec.kind] || spec.kind;
+  $(&#39;by&#39;).textContent = spec.meta?.builtBy || &#39;agent&#39;;
+  $(&#39;at&#39;).textContent = spec.meta?.builtAt || &#39;&#39;;
+
+  const steps = () =&gt; (spec.steps || []).filter(s =&gt; !s.option || s.option === optionId);
+  const diagramText = () =&gt; spec.options ? spec.options.find(o =&gt; o.id === optionId)?.diagram : spec.diagram;
+
+  function mount() {
+    const el = $(&#39;diagram&#39;);
+    mounted?.destroy();
+    el.innerHTML = &#39;&#39;;
+    mounted = pele.mount(el, diagramText(), {
+      idPrefix: (optionId || &#39;d&#39;) + &#39;-&#39;,
+      zoom: false,
+      responsive: false,
+      fontSize: 17,
+      padding: 24,
+      onRender: (r) =&gt; {
+        svg = el.querySelector(&#39;svg&#39;);
+        // The page owns the viewBox from here: Pele lays out at natural size, the camera decides what is on screen.
+        full = [0, 0, r.width, r.height];
+        svg.removeAttribute(&#39;width&#39;); svg.removeAttribute(&#39;height&#39;);
+        svg.setAttribute(&#39;preserveAspectRatio&#39;, &#39;xMidYMid meet&#39;);
+        Object.assign(view, { x: 0, y: 0, w: r.width, h: r.height }); writeView();
+        fitStage();
+        $(&#39;fit&#39;).hidden = fitsWhole();
+        applyStep(stepIndex, false);
+        updateReset();
+      },
+      onError: e =&gt; console.error(&#39;[viz-explainer] diagram error&#39;, e),
+    });
+  }
+
+  function clearFocus() { svg?.querySelectorAll(&#39;.is-focus&#39;).forEach(n =&gt; n.classList.remove(&#39;is-focus&#39;)); }
+
+  // Camera: the union of the focused elements&#39; boxes, in SVG units, with room around it. Never zoom past 1:1 by much,
+  // never tighter than a third of the map, so a single small node does not become a wall of text.
+  function boxOf(elements) {
+    const m = svg.getScreenCTM()?.inverse(); if (!m || !elements.length) return null;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const el of elements) {
+      const r = el.getBoundingClientRect();
+      for (const [cx, cy] of [[r.left, r.top], [r.right, r.bottom]]) { const p = new DOMPoint(cx, cy).matrixTransform(m); x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); }
+    }
+    const stage = $(&#39;diagram&#39;).getBoundingClientRect(); const aspect = stage.width / Math.max(1, stage.height);
+    const pad = 64; let w = x2 - x1 + pad * 2, h = y2 - y1 + pad * 2;
+    // Never zoom past 1.1:1, so labels stay readable instead of billboard-sized.
+    const minW = Math.min(full[2], stage.width / 1.1);
+    if (w &lt; minW) w = minW;
+    if (h &lt; w / aspect) h = w / aspect; else w = h * aspect;
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    // Keep the frame inside the map: a node at the edge shows its neighbours, not empty stage.
+    const clamp = (v, size, total) =&gt; size &gt;= total ? (total - size) / 2 : Math.min(Math.max(v, 0), total - size);
+    const box = [clamp(cx - w / 2, w, full[2]), clamp(cy - h / 2, h, full[3]), w, h];
+    box.raw = Math.max(x2 - x1, (y2 - y1) * aspect);
+    return box;
+  }
+  // The stage takes its height from the diagram&#39;s proportions, with headroom for the camera, so a wide map is not letterboxed.
+  function fitStage() {
+    if (!full) return;
+    const stage = document.querySelector(&#39;.stage&#39;);
+    // Full screen: the stage takes every pixel the heading, caption and controls leave.
+    if (isFull()) { const rest = [&#39;header&#39;, &#39;.rail&#39;, &#39;footer&#39;].reduce((n, q) =&gt; n + (document.querySelector(q)?.offsetHeight ?? 0), 0) + 96; stage.style.height = `${Math.max(320, innerHeight - rest)}px`; return; }
+    // A diagram that fits at natural size gets a stage its own height and no camera. A wider one gets most of the viewport.
+    const h = fitsWhole() ? full[3] + 32 : Math.max(viewH() * 0.56, 420, stage.clientWidth * (full[3] / full[2]));
+    stage.style.height = `${Math.round(Math.min(viewH() * 0.64, Math.max(300, h)))}px`;
+  }
+
+  function fitsWhole() { const stage = document.querySelector(&#39;.stage&#39;); return !!full &amp;&amp; full[2] &lt;= stage.clientWidth * 1.05; }
+
+  // Tween a plain object and write the viewBox each frame: anime does not interpolate a four-number attribute string.
+  const view = { x: 0, y: 0, w: 1, h: 1 };
+  const writeView = () =&gt; svg?.setAttribute(&#39;viewBox&#39;, `${view.x} ${view.y} ${view.w} ${view.h}`);
+  function moveCamera(box, animated) {
+    if (!svg || !box) return;
+    camera?.pause?.();
+    const [x, y, w, h] = box;
+    if (!animated || !D) { Object.assign(view, { x, y, w, h }); writeView(); return; }
+    camera = anime.animate(view, { x, y, w, h, duration: 480, ease: &#39;inOutQuart&#39;, onUpdate: writeView });
+  }
+  $(&#39;fit&#39;).onclick = () =&gt; { fitAll = !fitAll; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, String(fitAll)); applyStep(stepIndex, true); updateReset(); };
+
+  // Reset the view, not the record: step 1, first option, the step&#39;s own frame. A recorded decision is an event and stays.
+  function reset() {
+    fitAll = false; $(&#39;fit&#39;).setAttribute(&#39;aria-pressed&#39;, &#39;false&#39;);
+    const first = spec.options?.[0]?.id ?? null;
+    if (first &amp;&amp; optionId !== first) {
+      optionId = first; stepIndex = 0;
+      [...$(&#39;tabs&#39;).children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, String(t.dataset.id === first)));
+      mount();
+    } else go(0);
+    history.replaceState(null, &#39;&#39;, location.pathname + location.search);
+    updateReset();
+  }
+  function updateReset() { $(&#39;reset&#39;).disabled = stepIndex === 0 &amp;&amp; !fitAll &amp;&amp; (!spec.options || optionId === spec.options[0].id); }
+  $(&#39;reset&#39;).onclick = reset;
+
+  // Full screen the whole artifact, not just the drawing, so the caption and step controls stay with it.
+  if (!document.fullscreenEnabled &amp;&amp; !embedded) $(&#39;full&#39;).hidden = true;
+  const onFullChange = () =&gt; {
+    document.documentElement.classList.toggle(&#39;is-full&#39;, isFull());
+    $(&#39;full&#39;).setAttribute(&#39;aria-pressed&#39;, String(isFull()));
+    $(&#39;full&#39;).textContent = isFull() ? &#39;exit full screen&#39; : &#39;full screen&#39;;
+    requestAnimationFrame(() =&gt; { fitStage(); applyStep(stepIndex, false); });
+  };
+  $(&#39;full&#39;).onclick = () =&gt; {
+    if (document.fullscreenElement) return document.exitFullscreen();
+    if (expanded) return parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;);
+    // Some browsers and embeds refuse full screen; then ask the host page to expand our frame instead.
+    document.documentElement.requestFullscreen().catch(() =&gt; { if (embedded) parent.postMessage({ fullscreen: &#39;expand&#39; }, &#39;*&#39;); });
+  };
+  document.addEventListener(&#39;fullscreenchange&#39;, onFullChange);
+  addEventListener(&#39;message&#39;, (e) =&gt; { if (e.data &amp;&amp; typeof e.data.expanded === &#39;boolean&#39;) { expanded = e.data.expanded; onFullChange(); } });
+
+  function applyStep(i, animated) {
+    const list = steps();
+    const step = list[i];
+    $(&#39;stepLabel&#39;).textContent = list.length ? `Step ${i + 1} of ${list.length}` : &#39;&#39;;
+    $(&#39;caption&#39;).textContent = step?.caption || &#39;&#39;;
+    $(&#39;evidence&#39;).innerHTML = (step?.evidence || []).map(e =&gt; `&lt;li&gt;${esc(e)}&lt;/li&gt;`).join(&#39;&#39;);
+    $(&#39;prev&#39;).disabled = i &lt;= 0; $(&#39;next&#39;).disabled = i &gt;= list.length - 1;
+    $(&#39;dots&#39;).innerHTML = list.map((_, k) =&gt; `&lt;i class=&quot;${k === i ? &#39;on&#39; : &#39;&#39;}&quot;&gt;&lt;/i&gt;`).join(&#39;&#39;);
+    if (!svg || !step) return;
+    running?.complete?.();
+    clearFocus();
+    const nodes = svg.querySelectorAll(&#39;.pele-node, .pele-cluster&#39;);
+    const edges = svg.querySelectorAll(&#39;.pele-edge, .pele-edge-label&#39;);
+    const focusIds = step.focus || [], edgeIds = step.edges || [];
+    const on = focusIds.map(id =&gt; svg.querySelector(`.pele-node[data-id=&quot;${id}&quot;], .pele-cluster[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    const onEdges = edgeIds.map(id =&gt; svg.querySelector(`.pele-edge[data-id=&quot;${id}&quot;]`)).filter(Boolean);
+    // Frame the focus and both ends of every focused edge, so an arrow never points off screen.
+    const ends = edgeIds.flatMap(id =&gt; (/^L_(.+)_(.+)_\d+$/.exec(id) ?? []).slice(1))
+      .map(n =&gt; svg.querySelector(`.pele-node[data-id=&quot;${n}&quot;]`)).filter(Boolean);
+    // Frame what is highlighted. Pull out to an edge&#39;s far end only when that costs little zoom;
+    // otherwise the edge leaves the frame pointing where it goes, and the highlight stays readable.
+    const tight = on.length ? boxOf(on) : null;
+    const wide = boxOf([...on, ...onEdges, ...ends]);
+    const roomy = tight &amp;&amp; wide &amp;&amp; wide.raw &lt;= Math.max(tight.raw * 1.6, ($(&#39;diagram&#39;).clientWidth / 1.1) * 0.9);
+    moveCamera(fitAll || fitsWhole() || !(on.length || onEdges.length) ? full : (tight &amp;&amp; !roomy ? tight : wide), animated);
+    const dim = focusIds.length || edgeIds.length ? 0.3 : 1;
+    const dur = animated ? 180 * D : 0;
+    anime.animate(nodes, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(edges, { opacity: dim, duration: dur, ease: &#39;outQuad&#39; });
+    anime.animate(on, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+    on.forEach(n =&gt; n.classList.add(&#39;is-focus&#39;));
+    onEdges.forEach((g, k) =&gt; {
+      g.classList.add(&#39;is-focus&#39;);
+      anime.animate(g, { opacity: 1, duration: dur, ease: &#39;outQuad&#39; });
+      const label = svg.querySelector(`.pele-edge-label[data-id=&quot;${g.dataset.id}&quot;]`); if (label) anime.animate(label, { opacity: 1, duration: dur });
+      const path = g.querySelector(&#39;path&#39;);
+      if (path &amp;&amp; animated &amp;&amp; D) {
+        const [drawable] = anime.svg.createDrawable(path);
+        running = anime.animate(drawable, { draw: [&#39;0 0&#39;, &#39;0 1&#39;], duration: 420, delay: k * 120, ease: &#39;inOutQuad&#39; });
+      }
+    });
+    post({ type: &#39;greenhouse:step&#39;, index: i, id: step.id });
+  }
+
+  function go(i) {
+    const n = steps().length; stepIndex = Math.max(0, Math.min(n - 1, i)); applyStep(stepIndex, true); updateReset();
+    const id = steps()[stepIndex]?.id; if (id) history.replaceState(null, &#39;&#39;, `#${id}`);
+  }
+  // Deep link: index.html#share opens on the step with that id.
+  const fromHash = () =&gt; { const i = steps().findIndex(s =&gt; s.id === decodeURIComponent(location.hash.slice(1))); return i &lt; 0 ? 0 : i; };
+  stepIndex = fromHash();
+  addEventListener(&#39;hashchange&#39;, () =&gt; go(fromHash()));
+  $(&#39;prev&#39;).onclick = () =&gt; go(stepIndex - 1);
+  $(&#39;next&#39;).onclick = () =&gt; go(stepIndex + 1);
+  addEventListener(&#39;keydown&#39;, e =&gt; { if (e.target.tagName === &#39;INPUT&#39;) return; if (e.key === &#39;ArrowRight&#39;) go(stepIndex + 1); if (e.key === &#39;ArrowLeft&#39;) go(stepIndex - 1); if (e.key === &#39;f&#39;) $(&#39;fit&#39;).click(); if (e.key === &#39;F&#39;) $(&#39;full&#39;).click(); if (e.key === &#39;Escape&#39; &amp;&amp; expanded) parent.postMessage({ fullscreen: &#39;exit&#39; }, &#39;*&#39;); if (e.key === &#39;r&#39; || e.key === &#39;Home&#39;) reset(); });
+  addEventListener(&#39;resize&#39;, () =&gt; { fitStage(); applyStep(stepIndex, false); });
+
+  // Options: tabs, comparison, decision
+  if (spec.options?.length) {
+    const tabs = $(&#39;tabs&#39;); tabs.hidden = false;
+    tabs.innerHTML = spec.options.map(o =&gt; `&lt;button role=&quot;tab&quot; data-id=&quot;${esc(o.id)}&quot; aria-selected=&quot;${o.id === optionId}&quot;&gt;${esc(o.label)}&lt;/button&gt;`).join(&#39;&#39;);
+    tabs.onclick = e =&gt; { const b = e.target.closest(&#39;button&#39;); if (!b) return; optionId = b.dataset.id; stepIndex = 0; [...tabs.children].forEach(t =&gt; t.setAttribute(&#39;aria-selected&#39;, t === b)); mount(); updateReset(); };
+
+    // The comparison rows are the questions that matter for this decision: `spec.axes` = [{ key, label }], `option.axes[key]` = a short answer.
+    // Without `spec.axes`, the code-change defaults apply.
+    const axes = spec.axes
+      ? spec.axes.map(a =&gt; [esc(a.label), o =&gt; esc(o.axes?.[a.key] ?? &#39;&#39;)])
+      : [[&#39;Call sites touched&#39;, o =&gt; o.axes?.callSites ? `${o.axes.callSites.count}${o.axes.callSites.list?.length ? &#39; · &#39; + o.axes.callSites.list.map(esc).join(&#39;, &#39;) : &#39;&#39;}` : &#39;&#39;], [&#39;Mechanical vs judgement&#39;, o =&gt; esc(o.axes?.mechanical || &#39;&#39;)], [&#39;Silent behaviour changes&#39;, o =&gt; esc(o.axes?.silent || &#39;&#39;)], [&#39;Invariant at risk&#39;, o =&gt; esc(o.axes?.invariant || &#39;&#39;)]];
+    if (spec.options.some(o =&gt; o.axes)) {
+      $(&#39;compare&#39;).hidden = false;
+      $(&#39;compare&#39;).innerHTML = `&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;&lt;/th&gt;${spec.options.map(o =&gt; `&lt;th&gt;${esc(o.label)}&lt;/th&gt;`).join(&#39;&#39;)}&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${axes.map(([name, f]) =&gt; `&lt;tr&gt;&lt;td&gt;${name}&lt;/td&gt;${spec.options.map(o =&gt; `&lt;td&gt;${f(o)}&lt;/td&gt;`).join(&#39;&#39;)}&lt;/tr&gt;`).join(&#39;&#39;)}&lt;/tbody&gt;&lt;/table&gt;`;
+    }
+
+    if (spec.kind === &#39;decision-report&#39;) {
+      $(&#39;decide&#39;).hidden = false;
+      renderOptions();
+    }
+  }
+
+  function renderOptions() {
+    $(&#39;options&#39;).innerHTML = spec.options.map(o =&gt; {
+      const tried = o.tried ? `&lt;span class=&quot;tried&quot;&gt;tried · ${esc(o.tried.kind)} ${o.tried.ref ? (o.tried.href ? `&lt;a href=&quot;${esc(o.tried.href)}&quot;&gt;${esc(o.tried.ref)}&lt;/a&gt;` : esc(o.tried.ref)) : &#39;&#39;}${o.tried.summary ? &#39; · &#39; + esc(o.tried.summary) : &#39;&#39;}&lt;/span&gt;` : `&lt;span class=&quot;tried no&quot;&gt;not explored yet · cannot be chosen&lt;/span&gt;`;
+      const chosen = decision?.optionId === o.id;
+      return `&lt;div class=&quot;option ${chosen ? &#39;chosen&#39; : &#39;&#39;}&quot; data-id=&quot;${esc(o.id)}&quot;&gt;&lt;h3&gt;${esc(o.label)}&lt;/h3&gt;&lt;p&gt;${esc(o.summary || &#39;&#39;)}&lt;/p&gt;${tried}&lt;button ${(!o.tried || decision) ? &#39;disabled&#39; : &#39;&#39;} data-choose=&quot;${esc(o.id)}&quot;&gt;${chosen ? &#39;Chosen&#39; : &#39;Choose&#39;}&lt;/button&gt;&lt;/div&gt;`;
+    }).join(&#39;&#39;);
+    if (decision) { $(&#39;lock&#39;).hidden = false; $(&#39;lock&#39;).textContent = `Decided by ${decision.by?.name || &#39;unknown&#39;} · ${fmt(decision.at)} · ${spec.options.find(o =&gt; o.id === decision.optionId)?.label || decision.optionId}`; }
+  }
+  let pending = null;
+  $(&#39;options&#39;).onclick = e =&gt; {
+    const b = e.target.closest(&#39;button[data-choose]&#39;); if (!b || b.disabled) return;
+    pending = b.dataset.choose;
+    if (participant) return commit();
+    $(&#39;who&#39;).style.display = &#39;flex&#39;; $(&#39;whoName&#39;).focus();
+  };
+  $(&#39;whoOk&#39;).onclick = () =&gt; { const n = $(&#39;whoName&#39;).value.trim(); if (!n) return; participant = { id: null, name: n, kind: &#39;person&#39; }; $(&#39;who&#39;).style.display = &#39;none&#39;; commit(); };
+  function commit() {
+    const o = spec.options.find(x =&gt; x.id === pending); if (!o) return;
+    decision = { optionId: o.id, label: o.label, by: participant, at: new Date().toISOString(), tried: o.tried ? { kind: o.tried.kind, ref: o.tried.ref } : null };
+    post({ type: &#39;greenhouse:decision&#39;, ...decision });
+    renderOptions();
+    $(&#39;status&#39;).textContent = host ? &#39;recorded in plan&#39; : &#39;recorded locally (no host)&#39;;
+  }
+
+  // State-explorer proposals
+  if (spec.proposals) {
+    $(&#39;propose&#39;).hidden = false;
+    $(&#39;pSend&#39;).onclick = () =&gt; { const m = { type: &#39;greenhouse:proposal&#39;, from: $(&#39;pFrom&#39;).value.trim(), to: $(&#39;pTo&#39;).value.trim(), command: $(&#39;pCmd&#39;).value.trim() }; if (!m.from || !m.to || !m.command) return; post(m); $(&#39;pSend&#39;).textContent = &#39;Proposed&#39;; setTimeout(() =&gt; $(&#39;pSend&#39;).textContent = &#39;Propose&#39;, 1500); };
+  }
+
+  // Host protocol
+  addEventListener(&#39;message&#39;, e =&gt; {
+    const m = e.data; if (!m || m.type !== &#39;greenhouse:init&#39;) return;
+    host = m; participant = m.participant || null;
+    if (m.theme) for (const [k, v] of Object.entries(m.theme)) document.documentElement.style.setProperty(k, v);
+    if (m.decision) { decision = m.decision; if (spec.options) renderOptions(); }
+    $(&#39;status&#39;).textContent = `in plan · ${participant?.name || &#39;anonymous&#39;}`;
+  });
+  post({ type: &#39;greenhouse:ready&#39;, kind: spec.kind, question: spec.question });
+  if (embedded) new ResizeObserver(() =&gt; parent.postMessage({ frameHeight: Math.ceil(document.body.getBoundingClientRect().height) }, &#39;*&#39;)).observe(document.body);
+
+  function esc(s) { return String(s).replace(/[&amp;&lt;&gt;&quot;&#39;]/g, c =&gt; ({ &#39;&amp;&#39;: &#39;&amp;amp;&#39;, &#39;&lt;&#39;: &#39;&amp;lt;&#39;, &#39;&gt;&#39;: &#39;&amp;gt;&#39;, &#39;&quot;&#39;: &#39;&amp;quot;&#39;, &quot;&#39;&quot;: &#39;&amp;#39;&#39; }[c])); }
+  // A plain date stays a plain date; only a full timestamp gets a time, so a date never turns into a timezone artifact.
+  function fmt(iso) { if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso; try { return new Date(iso).toLocaleString(undefined, { dateStyle: &#39;medium&#39;, timeStyle: &#39;short&#39; }); } catch { return iso; } }
+
+  mount();
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+    <h3>Changes</h3><p class="lede-line">Each file this phase touches and what must be true of it afterwards. Code appears only as a contract other code depends on.</p><ul class="changes"><li class="change"><code class="file">docs/DOMAIN-VOCABULARY.md</code><div class="intent">Add <code>ResolveThread</code> and <code>DecisionRecorded</code> under Thread and Decision, before any code names them.</div></li><li class="change"><code class="file">packages/domain/src/thread/decider.ts</code><div class="intent">Add the command, the two events, and the resolve case in <code>decide</code>.</div><div class="contract"><figure class="codeblock"><figcaption><span class="lang">TypeScript</span></figcaption><pre><code class="lang-ts"><span class="tok-type">ResolveThread</span>    = <span class="tok-fn">defineCommand</span>(<span class="tok-str">&#39;ResolveThread&#39;</span>, { threadId, by, decision })
+<span class="tok-type">ThreadResolved</span>   = <span class="tok-fn">defineEvent</span>(<span class="tok-str">&#39;ThreadResolved&#39;</span>,  { threadId, by })
+<span class="tok-type">DecisionRecorded</span> = <span class="tok-fn">defineEvent</span>(<span class="tok-str">&#39;DecisionRecorded&#39;</span>, { threadId, blockId, by, decision })
+
+<span class="tok-kw">type</span> <span class="tok-type">ThreadState</span> = { kind: <span class="tok-str">&#39;none&#39;</span> } | { kind: <span class="tok-str">&#39;open&#39;</span>; blockId: string } | { kind: <span class="tok-str">&#39;resolved&#39;</span> }</code></pre></figure></div></li><li class="change"><code class="file">packages/domain/src/thread/thread.expect.test.ts</code><div class="intent">One expect test for resolve, one for resolving twice, one for the flag being off.</div></li></ul>
+    
+    <h3>Done when</h3><p class="lede-line">The phase is done when every box is ticked. Automated checks are commands; by-hand checks are things a person confirms by looking.</p>
+    <div class="verify"><div><h4>Automated</h4><ul class="checks"><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>just test</code></span></li><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>just domain-vocabulary-check</code></span></li></ul></div>
+    <div><h4>By hand</h4><ul class="checks"><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span>Read <code>resolve.snap.txt</code> aloud; it should sound like something that happened.</span></li></ul></div></div>
+    
+  </section><section class="phase" id="flag">
+    <header class="phase-head"><h2><span class="phase-num">Phase 2</span> Flag and API: the behaviour exists and is off</h2><span class="pill pill-in-progress">in progress · 2/3</span></header>
+    <p>The API runs the command through Effect services. <code>resolve-thread</code> is checked in <code>decide</code>, off by default, on for the two seeded people.</p>
+
+    
+    <h3>Changes</h3><p class="lede-line">Each file this phase touches and what must be true of it afterwards. Code appears only as a contract other code depends on.</p><ul class="changes"><li class="change"><code class="file">apps/api/src/services.ts</code><div class="intent">Decode, read flags, dispatch, and turn a rejection into a typed error.</div><div class="contract"><figure class="codeblock"><figcaption><span class="lang">TypeScript</span></figcaption><pre><code class="lang-ts"><span class="tok-fn">dispatch</span>(planId: string, body: unknown):
+  <span class="tok-type">Effect</span>&lt;<span class="tok-type">StoredEvent</span>[], <span class="tok-type">InvalidCommand</span> | <span class="tok-type">CommandRejected</span>&gt;</code></pre></figure></div></li><li class="change"><code class="file">apps/api/migrations/0001_flags_and_projections.sql</code><div class="intent">The flags table and the decisions projection; additive only.</div></li><li class="change"><code class="file">packages/db/seed.sql</code><div class="intent">Seed <code>resolve-thread</code> off, allowlisted for admin and pratos.</div></li></ul>
+    
+    <h3>Done when</h3><p class="lede-line">The phase is done when every box is ticked. Automated checks are commands; by-hand checks are things a person confirms by looking.</p>
+    <div class="verify"><div><h4>Automated</h4><ul class="checks"><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>bun test apps/api/test</code></span></li><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>GH_REMOTE=1 just flag list</code> · shows resolve-thread off with an allowlist</span></li></ul></div>
+    <div><h4>By hand</h4><ul class="checks"><li class="check "><input type="checkbox" disabled  aria-label="not done"><span>A guest gets 409 with a sentence that names the flag; pratos gets both events.</span></li></ul></div></div>
+    
+  </section><section class="phase" id="page">
+    <header class="phase-head"><h2><span class="phase-num">Phase 3</span> Plan page: resolve where the thread is</h2><span class="pill pill-in-progress">in progress · 3/4</span></header>
+    <p>Open threads get a field and a Resolve button; resolved ones show who decided what and when. Other tabs update without a refresh.</p>
+
+    
+    <h3>Changes</h3><p class="lede-line">Each file this phase touches and what must be true of it afterwards. Code appears only as a contract other code depends on.</p><ul class="changes"><li class="change"><code class="file">apps/web/src/routes/plans.$planId.tsx</code><div class="intent">Resolve form on open threads, decision line on resolved ones, live socket.</div></li><li class="change"><code class="file">apps/web/src/routes/plans.$planId.ws.ts</code><div class="intent">Proxy the socket to the API over the service binding.</div></li></ul>
+    <h3>Components</h3><figure class="component-block">
+    <figcaption><b>Thread, resolving</b> · One field, one action. The refusal names the flag in a sentence, never a status code.</figcaption>
+    <div class="states"><div class="state"><div class="state-label"><span>open</span><button type="button" class="full" aria-label="Show open full screen">full screen</button></div><iframe class="component" data-frame="c1" sandbox="allow-scripts" style="height:190px" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&lt;style&gt;:root{--bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #dad8ce; --surface: #f2f0e5; --accent: #205ea6; --ok: #66800b; --warn: #ad8301; --radius-md: 8px; --radius-lg: 12px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --font: ui-sans-serif, system-ui, -apple-system, Inter, sans-serif; --mono: ui-monospace, SF Mono, Menlo, monospace;} *{box-sizing:border-box} html,body{overflow:hidden} body{margin:0;padding:20px;font:15px/1.5 var(--font, ui-sans-serif, system-ui, sans-serif);background:var(--bg, #fffcf0);color:var(--fg, #100f0f)} .thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }
+.meta { font-size: 12px; color: var(--muted); }
+.body { margin: 6px 0 12px; font-size: 16px; }
+.row { display: flex; gap: 8px; }
+input { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }
+button { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }
+.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }
+.decided { margin: 0; font-size: 14px; color: var(--ok); }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;form class=&quot;row&quot;&gt;&lt;input aria-label=&quot;What was decided?&quot; placeholder=&quot;What was decided?&quot;&gt;&lt;button type=&quot;button&quot;&gt;Resolve&lt;/button&gt;&lt;/form&gt;&lt;/article&gt;&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({frameHeight:Math.ceil(document.body.getBoundingClientRect().height)},&#39;*&#39;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div><div class="state"><div class="state-label"><span>refused</span><button type="button" class="full" aria-label="Show refused full screen">full screen</button></div><iframe class="component" data-frame="c2" sandbox="allow-scripts" style="height:190px" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&lt;style&gt;:root{--bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #dad8ce; --surface: #f2f0e5; --accent: #205ea6; --ok: #66800b; --warn: #ad8301; --radius-md: 8px; --radius-lg: 12px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --font: ui-sans-serif, system-ui, -apple-system, Inter, sans-serif; --mono: ui-monospace, SF Mono, Menlo, monospace;} *{box-sizing:border-box} html,body{overflow:hidden} body{margin:0;padding:20px;font:15px/1.5 var(--font, ui-sans-serif, system-ui, sans-serif);background:var(--bg, #fffcf0);color:var(--fg, #100f0f)} .thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }
+.meta { font-size: 12px; color: var(--muted); }
+.body { margin: 6px 0 12px; font-size: 16px; }
+.row { display: flex; gap: 8px; }
+input { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }
+button { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }
+.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }
+.decided { margin: 0; font-size: 14px; color: var(--ok); }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;form class=&quot;row&quot;&gt;&lt;input aria-label=&quot;What was decided?&quot; value=&quot;wrapper&quot;&gt;&lt;button type=&quot;button&quot;&gt;Resolve&lt;/button&gt;&lt;/form&gt;&lt;p class=&quot;alert&quot; role=&quot;alert&quot;&gt;Resolving threads is not switched on for you yet.&lt;/p&gt;&lt;/article&gt;&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({frameHeight:Math.ceil(document.body.getBoundingClientRect().height)},&#39;*&#39;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div><div class="state"><div class="state-label"><span>decided</span><button type="button" class="full" aria-label="Show decided full screen">full screen</button></div><iframe class="component" data-frame="c3" sandbox="allow-scripts" style="height:190px" srcdoc="&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&lt;style&gt;:root{--bg: #fffcf0; --fg: #100f0f; --muted: #6f6e69; --line: #dad8ce; --surface: #f2f0e5; --accent: #205ea6; --ok: #66800b; --warn: #ad8301; --radius-md: 8px; --radius-lg: 12px; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --font: ui-sans-serif, system-ui, -apple-system, Inter, sans-serif; --mono: ui-monospace, SF Mono, Menlo, monospace;} *{box-sizing:border-box} html,body{overflow:hidden} body{margin:0;padding:20px;font:15px/1.5 var(--font, ui-sans-serif, system-ui, sans-serif);background:var(--bg, #fffcf0);color:var(--fg, #100f0f)} .thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }
+.meta { font-size: 12px; color: var(--muted); }
+.body { margin: 6px 0 12px; font-size: 16px; }
+.row { display: flex; gap: 8px; }
+input { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }
+button { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }
+.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }
+.decided { margin: 0; font-size: 14px; color: var(--ok); }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;p class=&quot;decided&quot;&gt;Decided by pratos · 2026-10-28 19:30 UTC · “wrapper”&lt;/p&gt;&lt;/article&gt;&lt;script&gt;new ResizeObserver(()=&gt;parent.postMessage({frameHeight:Math.ceil(document.body.getBoundingClientRect().height)},&#39;*&#39;)).observe(document.body)&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div></div>
+    <details><summary>markup</summary><pre><code>&lt;!-- open --&gt;
+&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;form class=&quot;row&quot;&gt;&lt;input aria-label=&quot;What was decided?&quot; placeholder=&quot;What was decided?&quot;&gt;&lt;button type=&quot;button&quot;&gt;Resolve&lt;/button&gt;&lt;/form&gt;&lt;/article&gt;
+
+&lt;!-- refused --&gt;
+&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;form class=&quot;row&quot;&gt;&lt;input aria-label=&quot;What was decided?&quot; value=&quot;wrapper&quot;&gt;&lt;button type=&quot;button&quot;&gt;Resolve&lt;/button&gt;&lt;/form&gt;&lt;p class=&quot;alert&quot; role=&quot;alert&quot;&gt;Resolving threads is not switched on for you yet.&lt;/p&gt;&lt;/article&gt;
+
+&lt;!-- decided --&gt;
+&lt;article class=&quot;thread&quot;&gt;&lt;div class=&quot;meta&quot;&gt;block b3 · 2 replies&lt;/div&gt;&lt;p class=&quot;body&quot;&gt;Should retries live in the client or the wrapper?&lt;/p&gt;&lt;p class=&quot;decided&quot;&gt;Decided by pratos · 2026-10-28 19:30 UTC · “wrapper”&lt;/p&gt;&lt;/article&gt;
+
+/* css */
+.thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }
+.meta { font-size: 12px; color: var(--muted); }
+.body { margin: 6px 0 12px; font-size: 16px; }
+.row { display: flex; gap: 8px; }
+input { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }
+button { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }
+.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }
+.decided { margin: 0; font-size: 14px; color: var(--ok); }</code></pre></details>
+  </figure>
+    <h3>Done when</h3><p class="lede-line">The phase is done when every box is ticked. Automated checks are commands; by-hand checks are things a person confirms by looking.</p>
+    <div class="verify"><div><h4>Automated</h4><ul class="checks"><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>just lint</code></span></li><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span><code>just demo cp-08</code> · a second socket hears the append</span></li></ul></div>
+    <div><h4>By hand</h4><ul class="checks"><li class="check is-done"><input type="checkbox" disabled checked aria-label="done"><span>Two tabs on /plans/gh-12: resolve in one, the other shows the decision without a refresh.</span></li><li class="check "><input type="checkbox" disabled  aria-label="not done"><span>As a guest, the refusal is a sentence and the field keeps its text.</span></li></ul></div></div>
+    
+  </section>
+  <section id="references"><h2>References</h2><p class="lede-line">Where the facts in this plan come from.</p><ul><li><code>docs/ARCHITECTURE.md</code> and the map at <code>docs/architecture/index.html#record</code></li><li><code>docs/RELEASE.md</code>, for the rollout once the page is done</li></ul></section>
+  <section id="versions"><h2>Versions</h2><p class="v-how">Every change to this plan, newest first. <code>just plan-history FILE</code> lists them, <code>just plan-at FILE vN</code> rebuilds one, <code>just plan-diff FILE vA vB</code> says what changed.</p><ol class="versions" reversed><li class="version" id="v4">
+    <div class="v-head"><span class="v-num">v4</span><time datetime="2026-10-28T06:50:24.000Z">2026-10-28 06:50 UTC</time><span class="v-who">pratos · Claude Code</span><code class="v-commit">e8c54fbbb</code></div>
+    <p class="v-intent">planning beat: replace the GH-12 event-modelling report with &#39;Where should the agent&#39;s work run?&#39; (browser tab, plan room, container; plain comparison rows); viz template takes per-decision axes; resolve-thread plan&#39;s decision in plain words; old report and example removed</p>
+    <ul class="v-changes"><li>references: 3 → 2 items</li><li>decision events edited</li></ul>
+    <details class="v-origin"><summary>Prompt · session 17cb8246</summary><blockquote>gh-12 decision report is a farce, instead have something better I don&#39;t know hat it means</blockquote><p class="v-session">session <code>17cb8246-9efc-45f0-9820-33ce52b0ada9</code> · transcript <code>~/.claude/projects/-Users-pratos-personal-growthx-ai-coding/17cb8246-9efc-45f0-9820-33ce52b0ada9.jsonl</code></p></details>
+  </li><li class="version" id="v3">
+    <div class="v-head"><span class="v-num">v3</span><time datetime="2026-10-28T06:44:01.000Z">2026-10-28 06:44 UTC</time><span class="v-who">pratos · Claude Code</span><code class="v-commit">8bc0031ce</code></div>
+    <p class="v-intent">rename glossary to domain vocabulary everywhere (docs/DOMAIN-VOCABULARY.md, check-domain-vocabulary.sh, domain-vocabulary-format.md, just domain-vocabulary-check); made in the deck session, committed here without deck/</p>
+    <ul class="v-changes"><li>discoveries edited (3 items)</li><li>decision events edited</li><li>phase domain: +docs/DOMAIN-VOCABULARY.md; −docs/GLOSSARY.md</li></ul>
+    <details class="v-origin"><summary>Prompt · session 17cb8246</summary><blockquote>[from another session] Done: scripts/demo.sh line 16 now runs check-domain-vocabulary.sh against docs/DOMAIN-VOCABULARY.md, so it needs the planted branch to carry the new names. Until you rebuild wrong/cp-01 → wrong/cp-02, `scripts/demo.sh cp-01` will report the planted branch as passing (old branch lacks the new paths), so treat that as expected in between. I&#39;m not committing (pratos hasn&#39;t asked me to); include the rename in your commit, excluding deck/. Your plan 1–4 looks right to me. Send the final mapping when the tags are rebuilt and I&#39;ll relabel the data-cp attributes in deck/slides.…</blockquote><p class="v-session">session <code>17cb8246-9efc-45f0-9820-33ce52b0ada9</code> · transcript <code>~/.claude/projects/-Users-pratos-personal-growthx-ai-coding/17cb8246-9efc-45f0-9820-33ce52b0ada9.jsonl</code></p></details>
+  </li><li class="version" id="v2">
+    <div class="v-head"><span class="v-num">v2</span><time datetime="2026-10-28T06:30:33.000Z">2026-10-28 06:30 UTC</time><span class="v-who">pratos · Claude Code</span><code class="v-commit">4689a95a1</code></div>
+    <p class="v-intent">create-plan: word budgets per field and per page with reading time; decided reports collapse behind Compare the options; both plans rewritten within budget (vocabulary plan 1,660 to 900 words)</p>
+    <ul class="v-changes"><li>approach rewritten (42 → 31 words)</li><li>discoveries edited (3 items)</li><li>notDoing edited (3 items)</li><li>decision events edited</li><li>phase flag: edited</li><li>phase page: edited</li><li>diagrams edited</li></ul>
+    <details class="v-origin"><summary>Prompt · session 17cb8246</summary><blockquote>right now the plan is too many words, we could reduce it but not lose the essence of the text (update the skill as well)</blockquote><p class="v-session">session <code>17cb8246-9efc-45f0-9820-33ce52b0ada9</code> · transcript <code>~/.claude/projects/-Users-pratos-personal-growthx-ai-coding/17cb8246-9efc-45f0-9820-33ce52b0ada9.jsonl</code></p></details>
+  </li><li class="version" id="v1">
+    <div class="v-head"><span class="v-num">v1</span><time datetime="2026-10-28T06:04:30.000Z">2026-10-28 06:04 UTC</time><span class="v-who">pratos · Claude Code</span><code class="v-commit">940fb909e</code></div>
+    <p class="v-intent">create-plan skill: plans are JSON rendered to one HTML page with viz-explainer diagrams and locked decision reports, live component states and a design-language panel; contracts only (15-line cap); rules enforced by the builder; just plan / plans; edit and pre-commit hooks rebuild plans; GH-12 plan in docs/plans. viz-explainer: embedded mode with height reporting, deps from skill or user cache, plain dates</p>
+    <ul class="v-changes"><li>created: &quot;Resolve a comment thread into a decision&quot;, 3 phases, 1 decisions</li></ul>
+    <details class="v-origin"><summary>Prompt · session 17cb8246</summary><blockquote>the viz should be an integral part of the create-plan skill we have. We add code but that code sometimes is too much, we can relook the humanlayer setup to update it for claude. Instead of markdown the documentation should be html with viz-explainer and nicely formatted text, for UI we should also add components or design language etc as inline components</blockquote><p class="v-session">session <code>17cb8246-9efc-45f0-9820-33ce52b0ada9</code> · transcript <code>~/.claude/projects/-Users-pratos-personal-growthx-ai-coding/17cb8246-9efc-45f0-9820-33ce52b0ada9.jsonl</code></p></details>
+  </li></ol></section>
+  <footer>Edit <code>skills/create-plan/assets/example.plan.json</code>, not this page. It is rebuilt from the JSON, and every change is a version in <code>skills/create-plan/assets/example.plan.versions.jsonl</code>.</footer>
+</main>
+</div>
+<script type="application/json" id="plan">{"title":"Resolve a comment thread into a decision","ticket":"GH-12","date":"2026-10-28","status":"implementing","author":"pratos with Claude Code","summary":"Today a comment thread on a block just ends. After this plan, a person or the agent resolves it with one sentence of what was decided, and that **decision stays attached to the block** with who decided and when. It ships behind the `resolve-thread` flag, off by default.","current":"Threads can be opened and replied to. Nothing records how a thread ended, so the same question gets argued again a week later. The plan room already keeps every change as an event, so a decision can be one more fact in that log.","discoveries":["The plan room appends every event a command produces in one synchronous block, so two events from one command land together or not at all.","Flags are read once per request and passed to the plan room as names; a function would arrive as a promise and read as true.","The domain vocabulary already names **Decision** and bans *resolution*, *verdict* and *outcome*."],"endState":"Resolving a thread records two facts, `ThreadResolved` and `DecisionRecorded`. A second resolve is refused. The plan page shows the decision on the thread, and every open tab sees it at once. People without the flag see the thread as before.","notDoing":["Reopening a resolved thread; nobody has asked for it yet.","Editing a recorded decision; a change of mind is a new thread.","Notifications outside the plan page."],"approach":"Domain first, because event shapes are the contract everything else reads. Then the flag and API, so the behaviour exists and is off. Then the page, with every state shown first.","approachDiagram":"lifecycle","diagrams":[{"id":"lifecycle","spec":{"kind":"state-explorer","question":"How does a thread move from open to decided?","meta":{"builtBy":"create-plan","builtAt":"2026-10-28","source":"GH-12 plan"},"diagram":"stateDiagram-v2\n  [*] --> Open: OpenThread\n  Open --> Open: Reply\n  Open --> Resolved: ResolveThread\n  Resolved --> [*]\n  note right of Resolved: DecisionRecorded","steps":[{"id":"open","caption":"OpenThread anchors a thread to one block.","focus":["Open"],"edges":["edge0"]},{"id":"reply","caption":"Each reply is appended. The thread stays open.","focus":["Open"],"edges":["edge1"]},{"id":"resolve","caption":"ResolveThread moves it to Resolved and records the decision.","focus":["Resolved"],"edges":["edge2"]},{"id":"twice","caption":"Resolved is the end; the type system rejects a second resolve.","focus":["Resolved","root_end"],"edges":["edge3"]}]}}],"decisions":[{"id":"events","question":"When someone resolves a comment, do we save one record or two?","options":[{"id":"two-events","label":"Two records"},{"id":"one-event","label":"One record"},{"id":"close-only","label":"Close it, record nothing"}],"chosen":"two-events","by":"pratos","at":"2026-10-27","why":"Two records keep \"the comment is closed\" and \"this was decided\" apart, so the decision log can count decisions on its own. Both were built and their tests passed.","viz":{"kind":"decision-report","question":"When someone resolves a comment, do we save one record or two?","meta":{"builtBy":"agent · just explore GH-12","builtAt":"2026-10-27","source":"GH-12 · two explorations"},"options":[{"id":"two-events","label":"Two records","summary":"One record says it closed; a second says who decided what.","diagram":"sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P->>A: ResolveThread(thread-7, \"wrapper\")\n  A->>L: ThreadResolved\n  A->>L: DecisionRecorded\n  L->>D: project decision","tried":{"kind":"exploration","ref":"exp_two_events","summary":"expect green, 2 projections touched"},"axes":{"files":"4 files","closeWithout":"Allowed","risk":"The log can trail the comment by a moment","words":"Yes"}},{"id":"one-event","label":"One record","summary":"One record says it closed and what was decided, together.","diagram":"sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P->>A: ResolveThread(thread-7, \"wrapper\")\n  A->>L: ThreadResolved{decision}\n  L->>D: project decision","tried":{"kind":"exploration","ref":"exp_one_event","summary":"expect green, 1 projection touched"},"axes":{"files":"3 files","closeWithout":"Impossible","risk":"Nothing found","words":"Yes"}},{"id":"close-only","label":"Close it, record nothing","summary":"It closes and nothing is recorded. What the first attempt wrote.","diagram":"sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  P->>A: ResolveThread(thread-7)\n  A->>L: ThreadClosed","tried":null,"axes":{"files":"1 file","closeWithout":"Always, no decision kept","risk":"Who decided is lost","words":"No: ThreadClosed is not a word we use"}}],"steps":[{"id":"cmd","option":"two-events","caption":"Pratos resolves comment 7 and writes what was decided.","edges":["i0"],"focus":["P","A"]},{"id":"resolved","option":"two-events","caption":"The first record: the comment is resolved.","edges":["i1"],"focus":["L"]},{"id":"decided","option":"two-events","caption":"The second record: who decided what. It can be left out.","edges":["i2"],"focus":["L"]},{"id":"proj","option":"two-events","caption":"The decision log reads both records.","edges":["i3"],"focus":["D"]},{"id":"cmd","option":"one-event","caption":"Pratos does the same thing.","edges":["i0"],"focus":["P","A"]},{"id":"resolved","option":"one-event","caption":"One record holds the resolve and the decision; no decision, no resolve.","edges":["i1"],"focus":["L"]},{"id":"proj","option":"one-event","caption":"The decision log reads that one record.","edges":["i2"],"focus":["D"]},{"id":"cmd","option":"close-only","caption":"Every test passes, yet the name is not in our vocabulary.","edges":["i0","i1"],"focus":["L"]}],"axes":[{"key":"files","label":"Code that changes"},{"key":"closeWithout","label":"Close without deciding?"},{"key":"risk","label":"What could go wrong"},{"key":"words","label":"Matches our vocabulary"}]}}],"design":{"notes":"The plan page is a working surface, read often and quickly. Quiet surfaces, one accent for the action, green only for something decided.","tokens":{"color":{"bg":"#fffcf0","fg":"#100f0f","muted":"#6f6e69","line":"#dad8ce","surface":"#f2f0e5","accent":"#205ea6","ok":"#66800b","warn":"#ad8301"},"type":[{"name":"title","size":28,"weight":650,"lineHeight":1.15,"sample":"Plan GH-12"},{"name":"body","size":16,"weight":400,"lineHeight":1.5,"sample":"Should retries live in the client or the wrapper?"},{"name":"meta","size":12,"weight":500,"lineHeight":1.4,"sample":"block b3 · 2 replies"}],"space":[4,8,12,16,24,32],"radius":{"md":8,"lg":12},"font":{"sans":"ui-sans-serif, system-ui, -apple-system, Inter, sans-serif","mono":"ui-monospace, SF Mono, Menlo, monospace"}}},"phases":[{"id":"domain","name":"Domain: resolve records two facts","goal":"The thread decider accepts `ResolveThread` and returns `ThreadResolved` then `DecisionRecorded`. Resolving twice is refused by the state type, not by a check.","diagram":"lifecycle","changes":[{"file":"docs/DOMAIN-VOCABULARY.md","intent":"Add `ResolveThread` and `DecisionRecorded` under Thread and Decision, before any code names them."},{"file":"packages/domain/src/thread/decider.ts","intent":"Add the command, the two events, and the resolve case in `decide`.","contract":{"lang":"ts","code":"ResolveThread    = defineCommand('ResolveThread', { threadId, by, decision })\nThreadResolved   = defineEvent('ThreadResolved',  { threadId, by })\nDecisionRecorded = defineEvent('DecisionRecorded', { threadId, blockId, by, decision })\n\ntype ThreadState = { kind: 'none' } | { kind: 'open'; blockId: string } | { kind: 'resolved' }"}},{"file":"packages/domain/src/thread/thread.expect.test.ts","intent":"One expect test for resolve, one for resolving twice, one for the flag being off."}],"verify":{"automated":[{"cmd":"just test","done":true},{"cmd":"just domain-vocabulary-check","done":true}],"manual":[{"text":"Read `resolve.snap.txt` aloud; it should sound like something that happened.","done":true}]}},{"id":"flag","name":"Flag and API: the behaviour exists and is off","goal":"The API runs the command through Effect services. `resolve-thread` is checked in `decide`, off by default, on for the two seeded people.","changes":[{"file":"apps/api/src/services.ts","intent":"Decode, read flags, dispatch, and turn a rejection into a typed error.","contract":{"lang":"ts","code":"dispatch(planId: string, body: unknown):\n  Effect\u003cStoredEvent[], InvalidCommand | CommandRejected>"}},{"file":"apps/api/migrations/0001_flags_and_projections.sql","intent":"The flags table and the decisions projection; additive only."},{"file":"packages/db/seed.sql","intent":"Seed `resolve-thread` off, allowlisted for admin and pratos."}],"verify":{"automated":[{"cmd":"bun test apps/api/test","done":true},{"cmd":"GH_REMOTE=1 just flag list","text":"shows resolve-thread off with an allowlist","done":true}],"manual":[{"text":"A guest gets 409 with a sentence that names the flag; pratos gets both events.","done":false}]}},{"id":"page","name":"Plan page: resolve where the thread is","goal":"Open threads get a field and a Resolve button; resolved ones show who decided what and when. Other tabs update without a refresh.","changes":[{"file":"apps/web/src/routes/plans.$planId.tsx","intent":"Resolve form on open threads, decision line on resolved ones, live socket."},{"file":"apps/web/src/routes/plans.$planId.ws.ts","intent":"Proxy the socket to the API over the service binding."}],"components":[{"name":"Thread, resolving","notes":"One field, one action. The refusal names the flag in a sentence, never a status code.","height":190,"states":[{"label":"open","html":"\u003carticle class=\"thread\">\u003cdiv class=\"meta\">block b3 · 2 replies\u003c/div>\u003cp class=\"body\">Should retries live in the client or the wrapper?\u003c/p>\u003cform class=\"row\">\u003cinput aria-label=\"What was decided?\" placeholder=\"What was decided?\">\u003cbutton type=\"button\">Resolve\u003c/button>\u003c/form>\u003c/article>"},{"label":"refused","html":"\u003carticle class=\"thread\">\u003cdiv class=\"meta\">block b3 · 2 replies\u003c/div>\u003cp class=\"body\">Should retries live in the client or the wrapper?\u003c/p>\u003cform class=\"row\">\u003cinput aria-label=\"What was decided?\" value=\"wrapper\">\u003cbutton type=\"button\">Resolve\u003c/button>\u003c/form>\u003cp class=\"alert\" role=\"alert\">Resolving threads is not switched on for you yet.\u003c/p>\u003c/article>"},{"label":"decided","html":"\u003carticle class=\"thread\">\u003cdiv class=\"meta\">block b3 · 2 replies\u003c/div>\u003cp class=\"body\">Should retries live in the client or the wrapper?\u003c/p>\u003cp class=\"decided\">Decided by pratos · 2026-10-28 19:30 UTC · “wrapper”\u003c/p>\u003c/article>"}],"css":".thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }\n.meta { font-size: 12px; color: var(--muted); }\n.body { margin: 6px 0 12px; font-size: 16px; }\n.row { display: flex; gap: 8px; }\ninput { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }\nbutton { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }\n.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }\n.decided { margin: 0; font-size: 14px; color: var(--ok); }"}],"verify":{"automated":[{"cmd":"just lint","done":true},{"cmd":"just demo cp-08","text":"a second socket hears the append","done":true}],"manual":[{"text":"Two tabs on /plans/gh-12: resolve in one, the other shows the decision without a refresh.","done":true},{"text":"As a guest, the refusal is a sentence and the field keeps its text.","done":false}]}}],"references":["`docs/ARCHITECTURE.md` and the map at `docs/architecture/index.html#record`","`docs/RELEASE.md`, for the rollout once the page is done"]}</script>
+<script>
+  // Full screen for a component state or a diagram. When the browser refuses (embeds, automation, some policies),
+  // the frame expands to fill the window instead; Esc or the close button returns it.
+  const close = Object.assign(document.createElement('button'), { className: 'expanded-close', textContent: 'Close · Esc', hidden: true });
+  document.body.append(close);
+  let open = null;
+  const expand = (f, on) => {
+    if (open && open !== f) expand(open, false);
+    f.classList.toggle('is-expanded', on); document.body.classList.toggle('has-expanded', on); close.hidden = !on; open = on ? f : null;
+    f.contentWindow?.postMessage({ expanded: on }, '*');
+  };
+  const goFull = (f) => document.fullscreenElement ? document.exitFullscreen() : f.requestFullscreen().catch(() => expand(f, true));
+  close.onclick = () => open && expand(open, false);
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) expand(open, false); });
+  document.addEventListener('click', (e) => { const b = e.target.closest('button.full'); if (b) goFull(b.closest('.state').querySelector('iframe')); });
+  addEventListener('message', (e) => {
+    const want = e.data && e.data.fullscreen; if (!want) return;
+    const f = [...document.querySelectorAll('iframe')].find((x) => x.contentWindow === e.source); if (!f) return;
+    if (want === 'expand') expand(f, true); else if (want === 'exit' && open === f) expand(f, false);
+  });
+  const links = [...document.querySelectorAll('.toc a')]; const targets = links.map((a) => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const io = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) links.forEach((a) => a.toggleAttribute('aria-current', a.getAttribute('href') === '#' + e.target.id)); }, { rootMargin: '-20% 0px -70% 0px' });
+  targets.forEach((t) => io.observe(t));
+</script>
+</body>
+</html>

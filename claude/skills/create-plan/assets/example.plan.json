@@ -1,0 +1,477 @@
+{
+  "title": "Resolve a comment thread into a decision",
+  "ticket": "GH-12",
+  "date": "2026-10-28",
+  "status": "implementing",
+  "author": "pratos with Claude Code",
+  "summary": "Today a comment thread on a block just ends. After this plan, a person or the agent resolves it with one sentence of what was decided, and that **decision stays attached to the block** with who decided and when. It ships behind the `resolve-thread` flag, off by default.",
+  "current": "Threads can be opened and replied to. Nothing records how a thread ended, so the same question gets argued again a week later. The plan room already keeps every change as an event, so a decision can be one more fact in that log.",
+  "discoveries": [
+    "The plan room appends every event a command produces in one synchronous block, so two events from one command land together or not at all.",
+    "Flags are read once per request and passed to the plan room as names; a function would arrive as a promise and read as true.",
+    "The domain vocabulary already names **Decision** and bans *resolution*, *verdict* and *outcome*."
+  ],
+  "endState": "Resolving a thread records two facts, `ThreadResolved` and `DecisionRecorded`. A second resolve is refused. The plan page shows the decision on the thread, and every open tab sees it at once. People without the flag see the thread as before.",
+  "notDoing": [
+    "Reopening a resolved thread; nobody has asked for it yet.",
+    "Editing a recorded decision; a change of mind is a new thread.",
+    "Notifications outside the plan page."
+  ],
+  "approach": "Domain first, because event shapes are the contract everything else reads. Then the flag and API, so the behaviour exists and is off. Then the page, with every state shown first.",
+  "approachDiagram": "lifecycle",
+  "diagrams": [
+    {
+      "id": "lifecycle",
+      "spec": {
+        "kind": "state-explorer",
+        "question": "How does a thread move from open to decided?",
+        "meta": {
+          "builtBy": "create-plan",
+          "builtAt": "2026-10-28",
+          "source": "GH-12 plan"
+        },
+        "diagram": "stateDiagram-v2\n  [*] --> Open: OpenThread\n  Open --> Open: Reply\n  Open --> Resolved: ResolveThread\n  Resolved --> [*]\n  note right of Resolved: DecisionRecorded",
+        "steps": [
+          {
+            "id": "open",
+            "caption": "OpenThread anchors a thread to one block.",
+            "focus": [
+              "Open"
+            ],
+            "edges": [
+              "edge0"
+            ]
+          },
+          {
+            "id": "reply",
+            "caption": "Each reply is appended. The thread stays open.",
+            "focus": [
+              "Open"
+            ],
+            "edges": [
+              "edge1"
+            ]
+          },
+          {
+            "id": "resolve",
+            "caption": "ResolveThread moves it to Resolved and records the decision.",
+            "focus": [
+              "Resolved"
+            ],
+            "edges": [
+              "edge2"
+            ]
+          },
+          {
+            "id": "twice",
+            "caption": "Resolved is the end; the type system rejects a second resolve.",
+            "focus": [
+              "Resolved",
+              "root_end"
+            ],
+            "edges": [
+              "edge3"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "events",
+      "question": "When someone resolves a comment, do we save one record or two?",
+      "options": [
+        {
+          "id": "two-events",
+          "label": "Two records"
+        },
+        {
+          "id": "one-event",
+          "label": "One record"
+        },
+        {
+          "id": "close-only",
+          "label": "Close it, record nothing"
+        }
+      ],
+      "chosen": "two-events",
+      "by": "pratos",
+      "at": "2026-10-27",
+      "why": "Two records keep \"the comment is closed\" and \"this was decided\" apart, so the decision log can count decisions on its own. Both were built and their tests passed.",
+      "viz": {
+        "kind": "decision-report",
+        "question": "When someone resolves a comment, do we save one record or two?",
+        "meta": {
+          "builtBy": "agent · just explore GH-12",
+          "builtAt": "2026-10-27",
+          "source": "GH-12 · two explorations"
+        },
+        "options": [
+          {
+            "id": "two-events",
+            "label": "Two records",
+            "summary": "One record says it closed; a second says who decided what.",
+            "diagram": "sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P->>A: ResolveThread(thread-7, \"wrapper\")\n  A->>L: ThreadResolved\n  A->>L: DecisionRecorded\n  L->>D: project decision",
+            "tried": {
+              "kind": "exploration",
+              "ref": "exp_two_events",
+              "summary": "expect green, 2 projections touched"
+            },
+            "axes": {
+              "files": "4 files",
+              "closeWithout": "Allowed",
+              "risk": "The log can trail the comment by a moment",
+              "words": "Yes"
+            }
+          },
+          {
+            "id": "one-event",
+            "label": "One record",
+            "summary": "One record says it closed and what was decided, together.",
+            "diagram": "sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  participant D as Decision log\n  P->>A: ResolveThread(thread-7, \"wrapper\")\n  A->>L: ThreadResolved{decision}\n  L->>D: project decision",
+            "tried": {
+              "kind": "exploration",
+              "ref": "exp_one_event",
+              "summary": "expect green, 1 projection touched"
+            },
+            "axes": {
+              "files": "3 files",
+              "closeWithout": "Impossible",
+              "risk": "Nothing found",
+              "words": "Yes"
+            }
+          },
+          {
+            "id": "close-only",
+            "label": "Close it, record nothing",
+            "summary": "It closes and nothing is recorded. What the first attempt wrote.",
+            "diagram": "sequenceDiagram\n  participant P as Person\n  participant A as API\n  participant L as Event log\n  P->>A: ResolveThread(thread-7)\n  A->>L: ThreadClosed",
+            "tried": null,
+            "axes": {
+              "files": "1 file",
+              "closeWithout": "Always, no decision kept",
+              "risk": "Who decided is lost",
+              "words": "No: ThreadClosed is not a word we use"
+            }
+          }
+        ],
+        "steps": [
+          {
+            "id": "cmd",
+            "option": "two-events",
+            "caption": "Pratos resolves comment 7 and writes what was decided.",
+            "edges": [
+              "i0"
+            ],
+            "focus": [
+              "P",
+              "A"
+            ]
+          },
+          {
+            "id": "resolved",
+            "option": "two-events",
+            "caption": "The first record: the comment is resolved.",
+            "edges": [
+              "i1"
+            ],
+            "focus": [
+              "L"
+            ]
+          },
+          {
+            "id": "decided",
+            "option": "two-events",
+            "caption": "The second record: who decided what. It can be left out.",
+            "edges": [
+              "i2"
+            ],
+            "focus": [
+              "L"
+            ]
+          },
+          {
+            "id": "proj",
+            "option": "two-events",
+            "caption": "The decision log reads both records.",
+            "edges": [
+              "i3"
+            ],
+            "focus": [
+              "D"
+            ]
+          },
+          {
+            "id": "cmd",
+            "option": "one-event",
+            "caption": "Pratos does the same thing.",
+            "edges": [
+              "i0"
+            ],
+            "focus": [
+              "P",
+              "A"
+            ]
+          },
+          {
+            "id": "resolved",
+            "option": "one-event",
+            "caption": "One record holds the resolve and the decision; no decision, no resolve.",
+            "edges": [
+              "i1"
+            ],
+            "focus": [
+              "L"
+            ]
+          },
+          {
+            "id": "proj",
+            "option": "one-event",
+            "caption": "The decision log reads that one record.",
+            "edges": [
+              "i2"
+            ],
+            "focus": [
+              "D"
+            ]
+          },
+          {
+            "id": "cmd",
+            "option": "close-only",
+            "caption": "Every test passes, yet the name is not in our vocabulary.",
+            "edges": [
+              "i0",
+              "i1"
+            ],
+            "focus": [
+              "L"
+            ]
+          }
+        ],
+        "axes": [
+          {
+            "key": "files",
+            "label": "Code that changes"
+          },
+          {
+            "key": "closeWithout",
+            "label": "Close without deciding?"
+          },
+          {
+            "key": "risk",
+            "label": "What could go wrong"
+          },
+          {
+            "key": "words",
+            "label": "Matches our vocabulary"
+          }
+        ]
+      }
+    }
+  ],
+  "design": {
+    "notes": "The plan page is a working surface, read often and quickly. Quiet surfaces, one accent for the action, green only for something decided.",
+    "tokens": {
+      "color": {
+        "bg": "#fffcf0",
+        "fg": "#100f0f",
+        "muted": "#6f6e69",
+        "line": "#dad8ce",
+        "surface": "#f2f0e5",
+        "accent": "#205ea6",
+        "ok": "#66800b",
+        "warn": "#ad8301"
+      },
+      "type": [
+        {
+          "name": "title",
+          "size": 28,
+          "weight": 650,
+          "lineHeight": 1.15,
+          "sample": "Plan GH-12"
+        },
+        {
+          "name": "body",
+          "size": 16,
+          "weight": 400,
+          "lineHeight": 1.5,
+          "sample": "Should retries live in the client or the wrapper?"
+        },
+        {
+          "name": "meta",
+          "size": 12,
+          "weight": 500,
+          "lineHeight": 1.4,
+          "sample": "block b3 · 2 replies"
+        }
+      ],
+      "space": [
+        4,
+        8,
+        12,
+        16,
+        24,
+        32
+      ],
+      "radius": {
+        "md": 8,
+        "lg": 12
+      },
+      "font": {
+        "sans": "ui-sans-serif, system-ui, -apple-system, Inter, sans-serif",
+        "mono": "ui-monospace, SF Mono, Menlo, monospace"
+      }
+    }
+  },
+  "phases": [
+    {
+      "id": "domain",
+      "name": "Domain: resolve records two facts",
+      "goal": "The thread decider accepts `ResolveThread` and returns `ThreadResolved` then `DecisionRecorded`. Resolving twice is refused by the state type, not by a check.",
+      "diagram": "lifecycle",
+      "changes": [
+        {
+          "file": "docs/DOMAIN-VOCABULARY.md",
+          "intent": "Add `ResolveThread` and `DecisionRecorded` under Thread and Decision, before any code names them."
+        },
+        {
+          "file": "packages/domain/src/thread/decider.ts",
+          "intent": "Add the command, the two events, and the resolve case in `decide`.",
+          "contract": {
+            "lang": "ts",
+            "code": "ResolveThread    = defineCommand('ResolveThread', { threadId, by, decision })\nThreadResolved   = defineEvent('ThreadResolved',  { threadId, by })\nDecisionRecorded = defineEvent('DecisionRecorded', { threadId, blockId, by, decision })\n\ntype ThreadState = { kind: 'none' } | { kind: 'open'; blockId: string } | { kind: 'resolved' }"
+          }
+        },
+        {
+          "file": "packages/domain/src/thread/thread.expect.test.ts",
+          "intent": "One expect test for resolve, one for resolving twice, one for the flag being off."
+        }
+      ],
+      "verify": {
+        "automated": [
+          {
+            "cmd": "just test",
+            "done": true
+          },
+          {
+            "cmd": "just domain-vocabulary-check",
+            "done": true
+          }
+        ],
+        "manual": [
+          {
+            "text": "Read `resolve.snap.txt` aloud; it should sound like something that happened.",
+            "done": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "flag",
+      "name": "Flag and API: the behaviour exists and is off",
+      "goal": "The API runs the command through Effect services. `resolve-thread` is checked in `decide`, off by default, on for the two seeded people.",
+      "changes": [
+        {
+          "file": "apps/api/src/services.ts",
+          "intent": "Decode, read flags, dispatch, and turn a rejection into a typed error.",
+          "contract": {
+            "lang": "ts",
+            "code": "dispatch(planId: string, body: unknown):\n  Effect<StoredEvent[], InvalidCommand | CommandRejected>"
+          }
+        },
+        {
+          "file": "apps/api/migrations/0001_flags_and_projections.sql",
+          "intent": "The flags table and the decisions projection; additive only."
+        },
+        {
+          "file": "packages/db/seed.sql",
+          "intent": "Seed `resolve-thread` off, allowlisted for admin and pratos."
+        }
+      ],
+      "verify": {
+        "automated": [
+          {
+            "cmd": "bun test apps/api/test",
+            "done": true
+          },
+          {
+            "cmd": "GH_REMOTE=1 just flag list",
+            "text": "shows resolve-thread off with an allowlist",
+            "done": true
+          }
+        ],
+        "manual": [
+          {
+            "text": "A guest gets 409 with a sentence that names the flag; pratos gets both events.",
+            "done": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "page",
+      "name": "Plan page: resolve where the thread is",
+      "goal": "Open threads get a field and a Resolve button; resolved ones show who decided what and when. Other tabs update without a refresh.",
+      "changes": [
+        {
+          "file": "apps/web/src/routes/plans.$planId.tsx",
+          "intent": "Resolve form on open threads, decision line on resolved ones, live socket."
+        },
+        {
+          "file": "apps/web/src/routes/plans.$planId.ws.ts",
+          "intent": "Proxy the socket to the API over the service binding."
+        }
+      ],
+      "components": [
+        {
+          "name": "Thread, resolving",
+          "notes": "One field, one action. The refusal names the flag in a sentence, never a status code.",
+          "height": 190,
+          "states": [
+            {
+              "label": "open",
+              "html": "<article class=\"thread\"><div class=\"meta\">block b3 · 2 replies</div><p class=\"body\">Should retries live in the client or the wrapper?</p><form class=\"row\"><input aria-label=\"What was decided?\" placeholder=\"What was decided?\"><button type=\"button\">Resolve</button></form></article>"
+            },
+            {
+              "label": "refused",
+              "html": "<article class=\"thread\"><div class=\"meta\">block b3 · 2 replies</div><p class=\"body\">Should retries live in the client or the wrapper?</p><form class=\"row\"><input aria-label=\"What was decided?\" value=\"wrapper\"><button type=\"button\">Resolve</button></form><p class=\"alert\" role=\"alert\">Resolving threads is not switched on for you yet.</p></article>"
+            },
+            {
+              "label": "decided",
+              "html": "<article class=\"thread\"><div class=\"meta\">block b3 · 2 replies</div><p class=\"body\">Should retries live in the client or the wrapper?</p><p class=\"decided\">Decided by pratos · 2026-10-28 19:30 UTC · “wrapper”</p></article>"
+            }
+          ],
+          "css": ".thread { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; max-width: 560px; }\n.meta { font-size: 12px; color: var(--muted); }\n.body { margin: 6px 0 12px; font-size: 16px; }\n.row { display: flex; gap: 8px; }\ninput { flex: 1; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--fg); }\nbutton { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); }\n.alert { margin: 10px 0 0; font-size: 13.5px; color: var(--warn); }\n.decided { margin: 0; font-size: 14px; color: var(--ok); }"
+        }
+      ],
+      "verify": {
+        "automated": [
+          {
+            "cmd": "just lint",
+            "done": true
+          },
+          {
+            "cmd": "just demo cp-08",
+            "text": "a second socket hears the append",
+            "done": true
+          }
+        ],
+        "manual": [
+          {
+            "text": "Two tabs on /plans/gh-12: resolve in one, the other shows the decision without a refresh.",
+            "done": true
+          },
+          {
+            "text": "As a guest, the refusal is a sentence and the field keeps its text.",
+            "done": false
+          }
+        ]
+      }
+    }
+  ],
+  "references": [
+    "`docs/ARCHITECTURE.md` and the map at `docs/architecture/index.html#record`",
+    "`docs/RELEASE.md`, for the rollout once the page is done"
+  ]
+}

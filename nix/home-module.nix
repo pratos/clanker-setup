@@ -84,7 +84,8 @@ flakeSrc: {
     # state, so we only add/update and never prune.
     if [ -d "${flakeSrc}/claude/skills" ]; then
       mkdir -p "$CLAUDE_DIR/skills"
-      ${pkgs.rsync}/bin/rsync -a "${flakeSrc}/claude/skills/" "$CLAUDE_DIR/skills/"
+      chmod -R u+rwX "$CLAUDE_DIR/skills" 2>/dev/null || true
+      ${pkgs.rsync}/bin/rsync -a --chmod=u+rwX "${flakeSrc}/claude/skills/" "$CLAUDE_DIR/skills/"
       echo "pi sync: copied claude/skills"
     fi
 
@@ -108,11 +109,11 @@ flakeSrc: {
     if [ -z "$pi_bin" ]; then
       if command -v bun >/dev/null 2>&1; then
         echo "Installing pi via bun..."
-        bun install --global @mariozechner/pi-coding-agent
+        bun install --global @earendil-works/pi-coding-agent
         pi_bin="$HOME/.bun/bin/pi"
       elif command -v npm >/dev/null 2>&1; then
         echo "Installing pi via npm..."
-        npm install -g @mariozechner/pi-coding-agent
+        npm install -g @earendil-works/pi-coding-agent
         pi_bin="$(command -v pi || true)"
       else
         echo "pi bootstrap: skipped (no bun/npm available)" >&2
