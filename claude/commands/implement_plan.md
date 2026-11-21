@@ -4,6 +4,17 @@ description: Implement technical plans from thoughts/_shared/plans with verifica
 
 # Implement Plan
 
+## Plan format
+
+Plans made by the `create-plan` skill are two files: `docs/plans/YYYY-MM-DD-slug.plan.json`, the source, and the `.plan.html` page built from it. Work on the JSON, never on the HTML:
+
+- A check is done when its `"done"` is `true`. Set it by editing the JSON, then rebuild with `just plan <file>`, or `bun <create-plan skill>/scripts/build.mjs <file>` where the repo has no recipe. A hook may already rebuild on edit.
+- `phases[]` each have `changes` (a file and one sentence, sometimes a short contract), `components` for UI, and `verify.automated` / `verify.manual`.
+- `status` moves draft, final, implementing, done. Set `implementing` when work starts and `done` only when every check is done.
+- Tick a manual check only after the person confirms it.
+- A new or changed design choice gets a decision report in `decisions`, as the create-plan skill describes.
+- Older Markdown plans with `- [ ]` checkboxes still work the old way.
+
 You are tasked with implementing an approved technical plan from `thoughts/_shared/plans/`. These plans contain phases with specific changes and success criteria.
 
 ## Getting Started

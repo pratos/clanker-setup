@@ -1,14 +1,17 @@
 ---
 description: Create a git commit, push it and create a PR
-model: claude-3-5-haiku-latest
+model: haiku
 ---
 
 ## Context
 
-- Current git status: !`git status`
-- Current git diff (staged and unstaged changes): !`git diff HEAD`
-- Current branch: !`git branch --show-current`
-- Recent commits: !`git log --oneline -10`
+Current git status: !`git status`
+
+Current git diff (staged and unstaged changes): !`git diff HEAD`
+
+Current branch: !`git branch --show-current`
+
+Recent commits: !`git log --oneline -10`
 
 ## Commit Format
 
@@ -23,13 +26,7 @@ Use Conventional Commits
 
 ### Types
 
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `perf:` - Performance improvement
-- `docs:` - Documentation
-- `test:` - Tests
-- `build:` - Build system
-- `chore:` - Maintenance
+Use `feat:` for a new feature, `fix:` for a bug fix, `perf:` for a performance improvement, `docs:` for documentation, `test:` for tests, `build:` for the build system and `chore:` for maintenance.
 
 ## Your task
 

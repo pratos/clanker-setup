@@ -1,0 +1,20 @@
+{
+  "settings": {
+    "notifyOnStartupConnect": false
+  },
+  "mcpServers": {
+    "deepwiki": {
+      "lifecycle": "lazy",
+      "idleTimeout": 10,
+      "oauth": false
+    },
+    "agentation": {
+      "lifecycle": "lazy",
+      "idleTimeout": 10
+    },
+    "mobbin": {
+      "lifecycle": "lazy",
+      "idleTimeout": 10
+    }
+  }
+}

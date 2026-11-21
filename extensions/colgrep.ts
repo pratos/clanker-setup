@@ -262,12 +262,6 @@ ${formatted}
       return;
     }
 
-    if (!hasIndex(ctx.cwd)) {
-      ctx.ui.notify(
-        "colgrep index not found. Run 'colgrep init' in project root to enable semantic search.",
-        "info"
-      );
-    }
   });
 
   pi.on("tool_call", async (event, ctx) => {

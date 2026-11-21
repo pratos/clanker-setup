@@ -44,6 +44,12 @@ flakeSrc: {
       fi
     done
 
+    # Sync adapter-specific MCP settings separately from Pi native config.
+    if [ -f "${flakeSrc}/pi/mcp-adapter.json" ]; then
+      cp -f "${flakeSrc}/pi/mcp-adapter.json" "$PI_DIR/mcp-adapter.json"
+      echo "pi sync: copied mcp-adapter.json"
+    fi
+
     # Sync AGENTS.md (global Pi agent instructions)
     if [ -f "${flakeSrc}/pi/AGENTS.md" ]; then
       cp -f "${flakeSrc}/pi/AGENTS.md" "$PI_DIR/AGENTS.md"

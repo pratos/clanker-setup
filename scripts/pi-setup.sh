@@ -112,6 +112,7 @@ sync_configs() {
 
 	# --- Pi configs ---
 	[ -f "$ROOT/pi/mcp.json" ] && cp "$ROOT/pi/mcp.json" "$PI_DIR/mcp.json" && echo "→ Synced mcp.json"
+	[ -f "$ROOT/pi/mcp-adapter.json" ] && cp "$ROOT/pi/mcp-adapter.json" "$PI_DIR/mcp-adapter.json" && echo "→ Synced mcp-adapter.json"
 
 	# --- AGENTS.md ---
 	if [ -f "$ROOT/pi/AGENTS.md" ]; then
